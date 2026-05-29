@@ -1,0 +1,328 @@
+/* HistoryPage.css - Styles for unified logs history and timeline layout */
+
+.history-page-container {
+  max-width: 960px;
+}
+
+.history-header-flex {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.history-header-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent-primary), #1d4ed8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.history-header-title-col h1 {
+  margin: 0;
+  line-height: 1.2;
+}
+
+.history-header-title-col p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Layout of action tabs selector */
+.history-tabs-container {
+  padding: 8px;
+  margin-bottom: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.history-tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Outfit', sans-serif;
+}
+
+.history-tab-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.history-tab-btn.active {
+  background: var(--accent-primary);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Search Box wrapper */
+.history-search-wrapper {
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.history-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 15px;
+  width: 100%;
+  font-family: 'Outfit', sans-serif;
+}
+
+.history-search-clear-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.history-loading-text {
+  text-align: center;
+  padding: 60px;
+  color: var(--text-secondary);
+}
+
+.history-empty-state-panel {
+  text-align: center;
+  padding: 60px;
+  color: var(--text-secondary);
+}
+
+.history-empty-state-panel p {
+  margin-top: 16px;
+}
+
+/* Timeline Day groups */
+.history-group-section {
+  margin-bottom: 32px;
+}
+
+.history-group-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.history-group-date-badge {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.history-group-count-text {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.history-group-divider {
+  flex: 1;
+  height: 1px;
+  background: var(--glass-border);
+}
+
+.history-logs-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Timeline Cards */
+.history-log-row-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 20px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.history-log-row-card:hover {
+  transform: translateX(4px);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+/* Action Icon Badges */
+.action-icon-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.action-import {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
+
+.action-export {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+}
+
+.action-pending {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+}
+
+.action-print {
+  background: rgba(167, 139, 250, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  color: #c084fc;
+}
+
+.action-restore {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #60a5fa;
+}
+
+.action-other {
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #cbd5e1;
+}
+
+/* Info columns layout */
+.history-log-sku-info-col {
+  flex: 1.2;
+}
+
+.history-log-sku-text {
+  font-weight: bold;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  color: white;
+}
+
+.history-log-badges-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.history-log-shop-badge {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+.history-log-location-badge {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #60a5fa;
+  font-weight: 500;
+}
+
+/* Details column */
+.history-log-details-col {
+  flex: 2;
+}
+
+.history-log-details-title {
+  display: block;
+  font-size: 9px;
+  font-weight: bold;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.history-log-details-value {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Time badge column */
+.history-log-time-badge {
+  text-align: right;
+  min-width: 130px;
+}
+
+.history-log-time-badge .time-label {
+  display: block;
+  font-size: 9px;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+  font-weight: bold;
+}
+
+.history-log-time-badge .time-value {
+  font-size: 16px;
+  color: white;
+  font-weight: bold;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .history-log-row-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .action-icon-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  .history-log-sku-info-col,
+  .history-log-details-col,
+  .history-log-time-badge {
+    width: 100%;
+    text-align: left;
+    min-width: 0;
+  }
+
+  .history-log-time-badge {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 8px;
+    margin-top: 4px;
+  }
+
+  .history-log-time-badge .time-label {
+    margin-bottom: 0;
+  }
+}

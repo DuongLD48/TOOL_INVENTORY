@@ -1,0 +1,350 @@
+/* ImportPage.css - Layout styles and fields specs for importing inventory items */
+
+.import-page-wrapper {
+  display: flex;
+  gap: 32px;
+}
+
+.import-page-panel {
+  flex: 1;
+  padding: 32px;
+}
+
+.import-page-panel h1 {
+  margin-bottom: 24px;
+}
+
+.import-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+/* Button Group Selector Styles */
+.button-selector-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.btn-selector {
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Outfit', sans-serif;
+  text-align: center;
+  user-select: none;
+}
+
+.btn-selector:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+  color: white;
+  transform: translateY(-1px);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.btn-selector:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-selector.active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: white;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.btn-selector:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.disabled-opacity {
+  opacity: 0.3;
+}
+
+.import-image-upload-wrapper {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.import-image-preview-thumbnail {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+}
+
+/* Custom Row for Location Dropdowns */
+.location-dropdown-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.location-select-item {
+  flex: 1;
+  margin-bottom: 0 !important;
+}
+
+.location-divider {
+  color: var(--text-secondary);
+  font-weight: bold;
+  font-size: 18px;
+  margin-top: -2px;
+  user-select: none;
+}
+
+/* Preview Summary Card Styles (Single Line) */
+.import-sku-preview-info {
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid var(--glass-border);
+  padding: 12px 18px;
+  border-radius: 12px;
+  margin-top: 10px;
+  margin-bottom: 24px;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.preview-string-box {
+  width: 50%;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-string-box {
+  width: 50%;
+  text-align: right;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.import-sku-preview-info strong {
+  color: white;
+}
+
+.import-sku-preview-info .highlight-sku {
+  color: var(--accent-primary);
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+}
+
+.import-sku-preview-info .highlight-loc {
+  color: var(--accent-success);
+  text-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+}
+
+/* Horizontal Actions Row */
+.action-buttons-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.action-btn-camera {
+  flex: 1.2;
+  padding: 14px;
+}
+
+.action-btn-submit {
+  flex: 1.8;
+  padding: 14px;
+}
+
+.btn-camera {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border: 1px solid var(--glass-border);
+}
+
+.btn-camera:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+
+.import-image-preview-thumbnail-inline {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+/* ===== Outer layout wrapper ===== */
+.import-page-outer {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.import-page-wrapper {
+  align-items: flex-start;
+}
+
+/* ===== Panel sản phẩm vừa nhập kho ===== */
+.import-recent-panel {
+  width: 300px;
+  flex-shrink: 0;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  position: sticky;
+  top: 20px;
+}
+
+@media (max-width: 900px) {
+  .import-recent-panel {
+    width: 100%;
+    max-height: 320px;
+    position: static;
+  }
+}
+
+.import-recent-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: white;
+}
+
+.import-recent-badge {
+  background: var(--accent-primary);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  min-width: 22px;
+  text-align: center;
+}
+
+.import-recent-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.import-recent-empty span {
+  font-size: 32px;
+  opacity: 0.5;
+}
+
+/* ===== List & Card ===== */
+.import-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.import-recent-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  animation: slideInRight 0.3s ease both;
+  transition: border-color 0.2s;
+}
+
+.import-recent-card:first-child {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.import-recent-card:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.import-recent-qr {
+  flex-shrink: 0;
+  background: white;
+  border-radius: 6px;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.import-recent-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.import-recent-sku {
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.import-recent-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.import-recent-shop {
+  font-size: 11px;
+  font-weight: 600;
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.15);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.import-recent-loc {
+  font-size: 11px;
+  color: #34d399;
+}
+
+.import-recent-id {
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}

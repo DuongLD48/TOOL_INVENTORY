@@ -1,0 +1,432 @@
+/* BatchPrintPage.css - Styling specs for thermal label previews, settings modals and confirm dialogs */
+
+.print-page-container {
+  padding: 20px;
+}
+
+.print-page-container h1 {
+  margin-bottom: 24px;
+}
+
+.print-panel-main {
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.print-panel-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.print-info-text-col p {
+  margin: 0;
+}
+
+.print-info-text-col p.secondary-desc {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.print-actions-btn-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.print-btn-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  height: 42px;
+}
+
+.print-btn-pdf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: white;
+  font-weight: bold;
+  height: 42px;
+}
+
+.print-btn-pdf:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.print-btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  min-width: 150px;
+  justify-content: center;
+  height: 42px;
+}
+
+.print-btn-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.spinner-svg {
+  animation: spin 1s linear infinite;
+}
+
+.print-error-box {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #fca5a5;
+  font-family: monospace;
+}
+
+/* Print Label Specifications */
+.print-label-empty-placeholder {
+  width: 35mm;
+  height: 22mm;
+}
+
+.print-label-card {
+  width: 35mm;
+  height: 22mm;
+  padding: 1.5mm;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2mm;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: white;
+}
+
+.print-label-qr-box {
+  flex: 0 0 14mm;
+  width: 14mm;
+  height: 14mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.print-label-info-col {
+  flex: 1;
+  padding: 0 1mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  text-align: left;
+  color: black;
+  line-height: 1.2;
+}
+
+.print-label-shop-name {
+  font-weight: bold;
+  font-size: 9.5px;
+}
+
+.print-label-sku-number {
+  font-weight: bold;
+  font-size: 9.5px;
+}
+
+.print-label-type-size {
+  font-weight: bold;
+  font-size: 9.5px;
+}
+
+.print-label-location-id {
+  font-weight: bold;
+  font-size: 9px;
+  margin-top: 2px;
+  color: #333;
+}
+
+.print-label-id-hash {
+  font-weight: normal;
+  opacity: 0.7;
+}
+
+/* Modal styling in printing page */
+.preview-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(6px);
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.preview-modal-box {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  color: black;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.preview-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.preview-modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.preview-modal-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+}
+
+.preview-modal-labels-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f0f0f0;
+  padding: 16px;
+  border-radius: 8px;
+  align-items: center;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.preview-modal-paper-sheet {
+  display: flex;
+  justify-content: center;
+  background: #f9f9f9;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.preview-modal-labels-pair-wrapper {
+  display: flex;
+  width: 70mm;
+  height: 22mm;
+  box-sizing: border-box;
+}
+
+.preview-modal-label-item {
+  background: white;
+  border: 1px dashed #ddd;
+}
+
+/* Settings Modal Specifics */
+.settings-modal-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-modal-label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.settings-modal-select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.6);
+  color: white;
+}
+
+.settings-modal-input {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.6);
+  color: white;
+  box-sizing: border-box;
+}
+
+.settings-modal-save-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 12px;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.settings-modal-save-btn:hover {
+  background: var(--accent-hover);
+}
+
+/* Confirmation Check Dialog */
+.confirm-dialog-content {
+  background: linear-gradient(135deg, rgba(30,30,50,0.98), rgba(20,20,40,0.98));
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px;
+  padding: 40px 36px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+}
+
+.confirm-dialog-icon-circle {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2));
+  border: 2px solid rgba(139,92,246,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+}
+
+.confirm-dialog-title {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.confirm-dialog-message {
+  margin: 0 0 28px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.confirm-dialog-message strong {
+  color: white;
+}
+
+.confirm-dialog-btn-success {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 13px 24px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: 0 4px 20px rgba(16,185,129,0.3);
+  transition: opacity 0.15s;
+}
+
+.confirm-dialog-btn-success:hover {
+  opacity: 0.88;
+}
+
+.confirm-dialog-btn-fail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 13px 24px;
+  border-radius: 12px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.6);
+  font-weight: 500;
+  font-size: 14px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.confirm-dialog-btn-fail:hover {
+  border-color: rgba(255,255,255,0.4);
+  color: white;
+}
+
+/* Spin animation */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== In Test button ===== */
+.print-btn-test {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  font-weight: 600;
+  height: 42px;
+  transition: all 0.2s ease;
+}
+
+.print-btn-test:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: rgba(245, 158, 11, 0.6);
+}
+
+.print-btn-test:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.print-test-success-box {
+  margin-top: 14px;
+  padding: 10px 16px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 8px;
+  font-size: 14px;
+  color: #34d399;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+

@@ -1,0 +1,4 @@
+allowBuilds:
+  protobufjs: true
+  sharp: true
+  sqlite3: true

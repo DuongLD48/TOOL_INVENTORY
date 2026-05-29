@@ -1,0 +1,130 @@
+/* Layout.css - Styles for sidebar navigation and dynamic QR code widgets */
+
+.sidebar-aside {
+  border-left: none;
+  border-top: none;
+  border-bottom: none;
+  border-radius: 0;
+}
+
+.sidebar-header-box {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--glass-border);
+  margin-bottom: 20px;
+}
+
+.sidebar-logo-title {
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-logo-icon-bg {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--accent-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-qr-box {
+  margin-top: auto;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.sidebar-qr-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+}
+
+.sidebar-qr-title {
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.sidebar-qr-svg-wrapper {
+  background: white;
+  padding: 8px;
+  border-radius: 8px;
+  display: inline-block;
+}
+
+.sidebar-qr-loading {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Sub-navigation tabs layout inside pages */
+.sub-nav-container {
+  display: flex;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  padding: 6px;
+  border-radius: 12px;
+  width: fit-content;
+  margin-bottom: 24px;
+  gap: 6px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.sub-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sub-nav-link:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+  transform: translateY(-1px);
+}
+
+.sub-nav-link.active {
+  background: var(--accent-primary);
+  color: white;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.35);
+}
+
+.sub-nav-link svg {
+  transition: transform 0.3s ease;
+}
+
+.sub-nav-link:hover svg {
+  transform: scale(1.1);
+}
+
+/* Responsive adjustments for sub navigation bar */
+@media (max-width: 768px) {
+  .sub-nav-container {
+    width: 100%;
+    margin-bottom: 20px;
+    gap: 4px;
+  }
+  
+  .sub-nav-link {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 4px;
+    font-size: 11px;
+    gap: 4px;
+  }
+}
