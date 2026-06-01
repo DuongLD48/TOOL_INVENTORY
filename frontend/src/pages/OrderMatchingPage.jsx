@@ -278,7 +278,42 @@ const OrderMatchingPage = () => {
     }
 
     const outputText = outputLines.join('\n');
-    navigator.clipboard.writeText(outputText)
+
+    const fallbackCopyTextToClipboard = (text) => {
+      return new Promise((resolve, reject) => {
+        try {
+          const textArea = document.createElement("textarea");
+          textArea.value = text;
+          
+          // Avoid scrolling to bottom
+          textArea.style.top = "0";
+          textArea.style.left = "0";
+          textArea.style.position = "fixed";
+          textArea.style.opacity = "0";
+
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+
+          const successful = document.execCommand('copy');
+          document.body.removeChild(textArea);
+
+          if (successful) {
+            resolve();
+          } else {
+            reject(new Error('Fallback copy failed'));
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+    };
+
+    const copyPromise = (navigator.clipboard && navigator.clipboard.writeText)
+      ? navigator.clipboard.writeText(outputText)
+      : fallbackCopyTextToClipboard(outputText);
+
+    copyPromise
       .then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
