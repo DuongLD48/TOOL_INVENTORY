@@ -6,6 +6,7 @@ import './OrderMatchingPage.css';
 const OrderMatchingPage = () => {
   const [rawText, setRawText] = useState('');
   const [matchingMode, setMatchingMode] = useState('sku_only'); // 'sku_only' or 'replace_drive'
+  const [selectedShop, setSelectedShop] = useState('SDR'); // 'SDR', 'BATT-BFG' or 'OTHER'
   const [parsedOrders, setParsedOrders] = useState([]);
   const [inStockProducts, setInStockProducts] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -72,48 +73,81 @@ const OrderMatchingPage = () => {
       let orderIdIndex = -1;
       let driveLinkIndex = -1;
       let driveLink = '';
+      let rawSku = '';
+      let orderId = '';
+      let date = '';
 
-      // Quét tìm cột SKU, cột Mã đơn hàng (bắt đầu bằng #), và cột Google Drive link
-      for (let i = 0; i < parts.length; i++) {
-        const cell = parts[i].trim();
-        if (cell.match(skuRegex) || cell.toUpperCase().startsWith('SYC')) {
-          skuIndex = i;
+      if (matchingMode === 'replace_drive') {
+        skuIndex = 3;
+        orderIdIndex = 1;
+        rawSku = parts[3] ? parts[3].trim() : '';
+        orderId = parts[1] ? parts[1].trim() : '';
+        date = parts[0] ? parts[0].trim() : '';
+      } else if (selectedShop === 'SDR') {
+        skuIndex = 1;
+        rawSku = parts[1] ? parts[1].trim() : '';
+        date = parts[0] ? parts[0].trim() : '';
+        if (date) {
+          date = date.replace(/Đơn\s*hàng/gi, '').trim();
         }
-        if (cell.startsWith('#') && !cell.includes('/') && !cell.includes('.')) {
-          orderIdIndex = i;
-        }
-        if (cell.includes('drive.google.com') || cell.includes('drive/folders')) {
-          driveLinkIndex = i;
-          driveLink = cell;
-        }
-      }
 
-      // Fallbacks nếu không tìm thấy rõ ràng
-      if (skuIndex === -1 && parts.length > 0) {
+        // Quét ngược từ cuối dòng để tìm cột chứa mã đơn hàng (có dấu # hoặc chứa 'sdr')
         for (let i = parts.length - 1; i >= 0; i--) {
-          if (parts[i].trim() && !parts[i].includes('drive.google.com')) {
-            skuIndex = i;
+          const cell = parts[i].trim();
+          if (cell.includes('#') || cell.toLowerCase().includes('sdr')) {
+            orderIdIndex = i;
+            orderId = cell;
             break;
           }
         }
-      }
+        
+        // Fallback nếu không quét thấy
+        if (orderIdIndex === -1 && parts.length > 0) {
+          orderIdIndex = parts.length - 1;
+          orderId = parts[parts.length - 1].trim();
+        }
+      } else {
+        // Quét tìm cột SKU, cột Mã đơn hàng (bắt đầu bằng #), và cột Google Drive link
+        for (let i = 0; i < parts.length; i++) {
+          const cell = parts[i].trim();
+          if (cell.match(skuRegex) || cell.toUpperCase().startsWith('SYC')) {
+            skuIndex = i;
+          }
+          if (cell.startsWith('#') && !cell.includes('/') && !cell.includes('.')) {
+            orderIdIndex = i;
+          }
+          if (cell.includes('drive.google.com') || cell.includes('drive/folders')) {
+            driveLinkIndex = i;
+            driveLink = cell;
+          }
+        }
 
-      if (orderIdIndex === -1 && parts.length > 0) {
-        // Tìm cột đầu tiên chứa text bắt đầu bằng # hoặc có dạng sdr
-        const foundIdx = parts.findIndex(p => p.trim().toLowerCase().startsWith('#') || p.trim().toLowerCase().includes('sdr'));
-        orderIdIndex = foundIdx !== -1 ? foundIdx : 0;
-      }
+        // Fallbacks nếu không tìm thấy rõ ràng
+        if (skuIndex === -1 && parts.length > 0) {
+          for (let i = parts.length - 1; i >= 0; i--) {
+            if (parts[i].trim() && !parts[i].includes('drive.google.com')) {
+              skuIndex = i;
+              break;
+            }
+          }
+        }
 
-      const rawSku = skuIndex !== -1 ? parts[skuIndex].trim() : '';
-      const orderId = orderIdIndex !== -1 ? parts[orderIdIndex].trim() : '';
-      
-      // Tìm quét ngày dạng dd/mm hoặc mm/dd
-      let date = '';
-      for (let i = 0; i < parts.length; i++) {
-        const cell = parts[i].trim();
-        if (cell.match(/^\d{1,2}\/\d{1,2}$/)) {
-          date = cell;
-          break;
+        if (orderIdIndex === -1 && parts.length > 0) {
+          // Tìm cột đầu tiên chứa text bắt đầu bằng # hoặc có dạng sdr
+          const foundIdx = parts.findIndex(p => p.trim().toLowerCase().startsWith('#') || p.trim().toLowerCase().includes('sdr'));
+          orderIdIndex = foundIdx !== -1 ? foundIdx : 0;
+        }
+
+        rawSku = skuIndex !== -1 ? parts[skuIndex].trim() : '';
+        orderId = orderIdIndex !== -1 ? parts[orderIdIndex].trim() : '';
+        
+        // Tìm quét ngày dạng dd/mm hoặc mm/dd
+        for (let i = 0; i < parts.length; i++) {
+          const cell = parts[i].trim();
+          if (cell.match(/^\d{1,2}\/\d{1,2}$/)) {
+            date = cell;
+            break;
+          }
         }
       }
 
@@ -260,17 +294,18 @@ const OrderMatchingPage = () => {
         return o.rawSku;
       });
     } else {
-      // Thay thế link Google Drive bằng #Vị-trí (hoặc nối thêm vào cuối dòng nếu không có link Drive)
+      // Ghi vị trí vào CỘT P (cột 16, index 15) và ghi "OK" vào CỘT M (cột 13, index 12) nếu khớp/pending
       outputLines = parsedOrders.map(o => {
         const parts = o.originalParts ? [...o.originalParts] : o.original.split('\t');
         const matchedLoc = o.match ? o.match.location : (o.alreadyAssigned ? o.matchLoc : '');
         
         if (matchedLoc) {
-          if (o.driveLinkIndex !== -1 && o.driveLinkIndex < parts.length) {
-            parts[o.driveLinkIndex] = `#${matchedLoc}`;
-          } else {
-            parts.push(`#${matchedLoc}`);
+          // Bảo đảm mảng parts đủ 16 cột (cột A->P) để gán giá trị
+          while (parts.length < 16) {
+            parts.push('');
           }
+          parts[12] = 'OK'; // Cột M (index 12)
+          parts[15] = matchedLoc; // Cột P (index 15)
         }
         
         return parts.join('\t');
@@ -334,31 +369,56 @@ const OrderMatchingPage = () => {
       </div>
 
       {/* Select Mode Switcher */}
-      <div className="glass-panel" style={{ padding: '16px 24px', display: 'flex', gap: '24px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ fontWeight: 'bold', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Chế độ ghép & copy:</span>
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.95rem' }}>
-            <input
-              type="radio"
-              name="matchingMode"
-              value="sku_only"
-              checked={matchingMode === 'sku_only'}
-              onChange={(e) => setMatchingMode(e.target.value)}
-              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-            />
-            <span>Copy chỉ cột SKU (SKU#VịTrí hoặc SKU gốc)</span>
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.95rem' }}>
-            <input
-              type="radio"
-              name="matchingMode"
-              value="replace_drive"
-              checked={matchingMode === 'replace_drive'}
-              onChange={(e) => setMatchingMode(e.target.value)}
-              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-            />
-            <span>Thay thế link Google Drive hoặc Thêm vào cuối dòng (Copy cả dòng)</span>
-          </label>
+        <div className="glass-panel" style={{ display: 'flex', padding: '2px', gap: '2px', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <button
+            type="button"
+            className={`view-mode-toggle-btn ${matchingMode === 'sku_only' ? 'active' : ''}`}
+            onClick={() => setMatchingMode('sku_only')}
+            style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '6px' }}
+          >
+            Copy chỉ cột SKU (SKU#VịTrí hoặc SKU gốc)
+          </button>
+          <button
+            type="button"
+            className={`view-mode-toggle-btn ${matchingMode === 'replace_drive' ? 'active' : ''}`}
+            onClick={() => setMatchingMode('replace_drive')}
+            style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '6px' }}
+          >
+            Ghi vị trí vào Cột P & 'OK' vào Cột M (Copy cả dòng)
+          </button>
+        </div>
+      </div>
+
+      {/* Select Shop format Switcher */}
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 'bold', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Cấu trúc file đơn hàng (Shop):</span>
+        <div className="glass-panel" style={{ display: 'flex', padding: '2px', gap: '2px', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <button
+            type="button"
+            className={`view-mode-toggle-btn ${selectedShop === 'SDR' ? 'active' : ''}`}
+            onClick={() => setSelectedShop('SDR')}
+            style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '6px' }}
+          >
+            SDR (Cột 1: Ngày, Cột 2: SKU, Cột 9: Đơn)
+          </button>
+          <button
+            type="button"
+            className={`view-mode-toggle-btn ${selectedShop === 'BATT-BFG' ? 'active' : ''}`}
+            onClick={() => setSelectedShop('BATT-BFG')}
+            style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '6px' }}
+          >
+            BATT-BFG (Tự động quét)
+          </button>
+          <button
+            type="button"
+            className={`view-mode-toggle-btn ${selectedShop === 'OTHER' ? 'active' : ''}`}
+            onClick={() => setSelectedShop('OTHER')}
+            style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '6px' }}
+          >
+            KHÁC (Tự động quét)
+          </button>
         </div>
       </div>
 
@@ -379,7 +439,7 @@ const OrderMatchingPage = () => {
             placeholder={
               matchingMode === 'sku_only'
                 ? `#sdr5366\t27/5\tSYC0199GSHO-L\n#sdr5367\t\tSYC0071GSHO-L`
-                : `#sdr5366\t27/5\tSYC0199GSHO-L\t...\thttps://drive.google.com/...`
+                : `[Cột 1: Ngày]\t[Cột 2: ĐƠN HÀNG]\t[Cột 3: Trống/Khác]\t[Cột 4: SKU]\nVí dụ:\n05/31\t#sdr5469\tThao\tSYC0345MLEG-2XL`
             }
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
@@ -462,7 +522,7 @@ const OrderMatchingPage = () => {
               ) : (
                 <>
                   <Copy size={16} />
-                  {matchingMode === 'sku_only' ? 'Copy cột SKU' : 'Copy toàn bộ dòng (thay link Drive)'}
+                  {matchingMode === 'sku_only' ? 'Copy cột SKU' : 'Copy cả dòng (Cột M: OK, Cột P: Vị trí)'}
                 </>
               )}
             </button>
@@ -478,7 +538,7 @@ const OrderMatchingPage = () => {
                   <th className="arrow-col"></th>
                   <th>SKU Tồn Kho</th>
                   <th>Vị trí Khớp</th>
-                  {matchingMode === 'replace_drive' && <th>Thay thế Link Drive</th>}
+                  {matchingMode === 'replace_drive' && <th>Ghi Cột M & Cột P</th>}
                   <th>Trạng thái</th>
                 </tr>
               </thead>
@@ -512,19 +572,15 @@ const OrderMatchingPage = () => {
                         )}
                       </td>
                       {matchingMode === 'replace_drive' && (
-                        <td style={{ fontSize: '0.85rem', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {order.driveLink ? (
-                            hasMatch ? (
-                              <span>
-                                <span style={{ textDecoration: 'line-through', opacity: 0.5 }} title={order.driveLink}>{order.driveLink}</span>
-                                <ArrowRight size={12} style={{ margin: '0 6px', display: 'inline', opacity: 0.6 }} />
-                                <span style={{ color: 'var(--accent-success)', fontWeight: 'bold' }}>#{matchedLoc}</span>
-                              </span>
-                            ) : (
-                              <span style={{ opacity: 0.8 }} title={order.driveLink}>{order.driveLink}</span>
-                            )
+                        <td style={{ fontSize: '0.85rem' }}>
+                          {hasMatch ? (
+                            <span>
+                              <span style={{ color: 'var(--accent-success)', fontWeight: 'bold' }}>M: OK</span>
+                              <span style={{ opacity: 0.5, margin: '0 8px' }}>|</span>
+                              <span style={{ color: 'var(--accent-primary)', fontWeight: 'bold' }}>P: {matchedLoc}</span>
+                            </span>
                           ) : (
-                            <span className="empty-val">Không phát hiện link Drive</span>
+                            <span className="empty-val">-</span>
                           )}
                         </td>
                       )}

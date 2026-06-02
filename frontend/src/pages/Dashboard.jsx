@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useSocket } from '../context/SocketContext';
-import { MapPin, Box, ImageOff, Search, LayoutGrid, List, Map, Printer, Trash2, Smartphone } from 'lucide-react';
+import { MapPin, Box, ImageOff, Search, LayoutGrid, List, Map, Printer, Trash2, Smartphone, Image as ImageIcon } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import './Dashboard.css';
 
@@ -54,8 +54,13 @@ const Dashboard = () => {
           }
           return p;
         }));
-      } else if (data.type === 'RESTORE_STOCK') {
+      } else if (data.type === 'RESTORE_STOCK' || data.type === 'UPDATE_IMAGE') {
         setProducts((prev) => prev.map(p => p.id === data.product.id ? data.product : p));
+        setSelectedCell((prev) => {
+          if (!prev) return null;
+          const updatedProducts = prev.products.map(p => p.id === data.product.id ? data.product : p);
+          return { ...prev, products: updatedProducts };
+        });
       }
     });
 
@@ -321,6 +326,70 @@ const Dashboard = () => {
       alert('Khôi phục tồn kho thành công!');
     } catch (err) {
       alert(`Lỗi khôi phục: ${err.message}`);
+    }
+  };
+
+  const handleUpdateImage = async (productId, file) => {
+    if (!file) return;
+
+    const compressImage = (file, maxWidth = 800, maxHeight = 800) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target.result;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = Math.round((width * maxHeight) / height);
+                height = maxHeight;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const compressedBase64 = canvas.toDataURL('image/webp', 0.75);
+            resolve(compressedBase64);
+          };
+          img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+      });
+    };
+
+    try {
+      const base64Data = await compressImage(file);
+      const res = await fetch(`http://${window.location.hostname}:3001/api/inventory/update-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: productId, imageUrl: base64Data })
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Lỗi khi cập nhật ảnh.');
+      
+      setProducts((prev) => prev.map(p => p.id === productId ? result.data : p));
+      setSelectedCell((prev) => {
+        if (!prev) return null;
+        const updatedProducts = prev.products.map(p => p.id === productId ? result.data : p);
+        return { ...prev, products: updatedProducts };
+      });
+      alert('Cập nhật hình ảnh thành công!');
+    } catch (err) {
+      alert(`Lỗi cập nhật ảnh: ${err.message}`);
     }
   };
 
@@ -957,6 +1026,20 @@ const Dashboard = () => {
                               Khôi phục Tồn kho
                             </button>
                           )}
+                          <label className="btn modal-product-btn-update-img" style={{ cursor: 'pointer' }}>
+                            <ImageIcon size={12} /> Đổi Ảnh
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  handleUpdateImage(product.id, file);
+                                }
+                              }}
+                              style={{ display: 'none' }}
+                            />
+                          </label>
                           <button 
                             onClick={() => handlePrintProduct(product)}
                             className="btn btn-primary modal-product-btn-print" 

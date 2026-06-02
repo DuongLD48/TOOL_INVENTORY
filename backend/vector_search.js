@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { Jimp } = require('jimp');
+const sharp = require('sharp');
 
 // Load environment variables from .env
 require('dotenv').config();
@@ -96,9 +96,9 @@ function cosineSimilarity(vecA, vecB) {
   return vecA.reduce((sum, val, i) => sum + val * vecB[i], 0);
 }
 
-// Chuyển đổi đầu vào ảnh thành RawImage của Transformers.js sử dụng Jimp
+// Chuyển đổi đầu vào ảnh thành RawImage của Transformers.js sử dụng sharp
 async function loadRawImage(imageInput) {
-  let image;
+  let buffer;
   if (typeof imageInput === 'string') {
     if (imageInput.startsWith('data:image/')) {
       // Xử lý ảnh base64 gửi từ frontend
@@ -106,36 +106,28 @@ async function loadRawImage(imageInput) {
       if (!matches || matches.length !== 2) {
         throw new Error('Định dạng ảnh Base64 không hợp lệ.');
       }
-      const buffer = Buffer.from(matches[1], 'base64');
-      image = await Jimp.read(buffer);
+      buffer = Buffer.from(matches[1], 'base64');
     } else {
       // Đường dẫn file vật lý trên đĩa
       if (!fs.existsSync(imageInput)) {
         throw new Error(`Không tìm thấy file ảnh tại đường dẫn: ${imageInput}`);
       }
-      image = await Jimp.read(imageInput);
+      buffer = await fs.promises.readFile(imageInput);
     }
   } else if (Buffer.isBuffer(imageInput)) {
-    image = await Jimp.read(imageInput);
+    buffer = imageInput;
   } else {
     throw new Error('Đầu vào hình ảnh không hợp lệ.');
   }
 
-  // Giải mã ảnh sang định dạng raw RGB bằng Jimp
-  // CLIP ViT-B-32 cần ảnh kích thước 224x224
-  image.resize({ w: 224, h: 224 });
-  const { data, width, height } = image.bitmap;
+  // Dùng sharp để resize sang 224x224, convert sang 3 channels (RGB) và xuất buffer raw
+  const { data, info } = await sharp(buffer)
+    .resize(224, 224, { fit: 'fill' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
 
-  // Chuyển đổi RGBA (4 channels của Jimp) sang RGB (3 channels của CLIP)
-  const rgbData = new Uint8Array(width * height * 3);
-  let j = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    rgbData[j++] = data[i];     // R
-    rgbData[j++] = data[i + 1]; // G
-    rgbData[j++] = data[i + 2]; // B
-  }
-
-  return new RawImage(rgbData, width, height, 3);
+  return new RawImage(new Uint8Array(data), info.width, info.height, 3);
 }
 
 // Trích xuất vector đặc trưng từ ảnh (Trả về mảng 512 số float đã được L2 normalized)

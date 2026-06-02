@@ -702,6 +702,64 @@ app.post('/api/inventory/restore-stock', (req, res) => {
   });
 });
 
+// 8.8 Cập nhật trực tiếp hình ảnh sản phẩm
+app.post('/api/inventory/update-image', (req, res) => {
+  let { id, imageUrl } = req.body;
+  if (!id) {
+    return res.status(400).json({ error: 'Cần cung cấp ID sản phẩm.' });
+  }
+  if (!imageUrl) {
+    return res.status(400).json({ error: 'Cần cung cấp hình ảnh sản phẩm.' });
+  }
+
+  const now = new Date().toISOString();
+
+  // Xử lý lưu file ảnh nếu là dạng Base64
+  if (imageUrl && imageUrl.startsWith('data:image/')) {
+    try {
+      const matches = imageUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const imageExtension = matches[1].split('/')[1] || 'jpg';
+        const imageData = matches[2];
+        const buffer = Buffer.from(imageData, 'base64');
+        const filename = `${Date.now()}_update_${Math.random().toString(36).slice(2)}.${imageExtension}`;
+        const filepath = path.join(uploadsDir, filename);
+        fs.writeFileSync(filepath, buffer);
+        
+        // Cập nhật imageUrl thành đường dẫn relative
+        imageUrl = `/uploads/${filename}`;
+      }
+    } catch (e) {
+      console.error('Lỗi khi lưu ảnh ra file:', e);
+      return res.status(500).json({ error: 'Lỗi khi lưu hình ảnh trên server.' });
+    }
+  }
+
+  db.run("UPDATE products SET imageUrl = ?, updatedAt = ? WHERE id = ?", [imageUrl, now, id], function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Không tìm thấy sản phẩm.' });
+    }
+
+    db.get("SELECT * FROM products WHERE id = ?", [id], (getErr, row) => {
+      if (!getErr && row) {
+        // Ghi nhật ký thao tác
+        db.run("INSERT INTO logs (actionType, productId, sku, location, shop, details, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          ['UPDATE_IMAGE', row.id, row.sku, row.location, row.shop, 'Cập nhật trực tiếp hình ảnh sản phẩm', now]
+        );
+        // Gửi sự kiện realtime cho các client khác cập nhật danh sách
+        io.emit('inventory_updated', { type: 'UPDATE_IMAGE', product: row });
+        
+        // Lập chỉ mục vector cho sản phẩm mới có ảnh
+        vectorSearch.indexProduct(db, row.id, imageUrl);
+      }
+      res.json({ message: 'Cập nhật hình ảnh thành công.', data: row });
+    });
+  });
+});
+
 // --- SOCKET.IO ---
 io.on('connection', (socket) => {
   console.log('Có client kết nối:', socket.id);
