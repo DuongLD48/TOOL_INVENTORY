@@ -13,3 +13,6 @@ backend/uploads/
 .DS_Store
 Driver máy in tem nhãn (Windows)/
 backend/models/
+backend/.cache/
+backend/.active_model
+backend/sdr_images/

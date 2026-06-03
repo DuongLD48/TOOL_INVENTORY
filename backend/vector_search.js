@@ -17,7 +17,7 @@ let isReady = false;
 
 // Cấu hình thư mục chứa model cục bộ và cache
 const LOCAL_MODEL_DIR = path.resolve(__dirname, 'models');
-const MODEL_NAME = 'Xenova/clip-vit-base-patch32';
+const MODEL_NAME = 'ff13/fashion-clip';
 const CACHE_DIR = path.resolve(__dirname, '.cache');
 
 // Hàm chuẩn bị thư viện Transformers.js
@@ -56,17 +56,59 @@ async function init(dbInstance) {
   try {
     await initTransformers();
 
-    console.log('[Vector Search] Đang tải Model CLIP ViT-B-32 vào RAM (việc này có thể mất vài phút trong lần chạy đầu tiên)...');
+    console.log(`[Vector Search] Đang tải Model Fashion-CLIP (${MODEL_NAME}) vào RAM (việc này có thể mất vài phút trong lần chạy đầu tiên)...`);
     
     // Tải vision model
     model = await CLIPVisionModelWithProjection.from_pretrained(MODEL_NAME);
     
     isReady = true;
     isInitializing = false;
-    console.log('[Vector Search] Model CLIP đã được nạp thành công vào RAM và sẵn sàng hoạt động!');
+    console.log('[Vector Search] Model Fashion-CLIP đã được nạp thành công vào RAM và sẵn sàng hoạt động!');
 
     // Chạy đồng bộ hóa các ảnh chưa có embedding trong Database
     if (dbInstance) {
+      // 1. Kiểm tra xem model trước đó là gì để chạy migration (reset index) nếu cần
+      const activeModelPath = path.resolve(__dirname, '.active_model');
+      let previousModel = '';
+      if (fs.existsSync(activeModelPath)) {
+        previousModel = fs.readFileSync(activeModelPath, 'utf8').trim();
+      }
+
+      let needsMigration = false;
+      if (previousModel !== MODEL_NAME) {
+        needsMigration = true;
+      } else if (!previousModel) {
+        // Trường hợp file tracking chưa có, nhưng db có thể đã có dữ liệu cũ
+        const hasEmbeddings = await new Promise((resolve) => {
+          dbInstance.get("SELECT COUNT(*) as count FROM products WHERE embedding IS NOT NULL AND embedding != ''", [], (err, row) => {
+            if (err || !row) resolve(0);
+            else resolve(row.count);
+          });
+        });
+        if (hasEmbeddings > 0) {
+          needsMigration = true;
+          console.log('[Vector Search] Phát hiện db đã có vector từ phiên bản cũ (chưa có file tracking). Cần làm mới.');
+        }
+      }
+
+      if (needsMigration) {
+        console.log(`[Vector Search] Phát hiện thay đổi model từ "${previousModel || 'không rõ'}" sang "${MODEL_NAME}".`);
+        console.log('[Vector Search] Tiến hành reset toàn bộ chỉ mục vector cũ để bắt đầu re-index...');
+        await new Promise((resolve) => {
+          dbInstance.run("UPDATE products SET embedding = NULL, updatedAt = ?", [new Date().toISOString()], (err) => {
+            if (err) {
+              console.error('[Vector Search] Lỗi khi reset embedding:', err.message);
+            } else {
+              console.log('[Vector Search] Reset chỉ mục vector cũ hoàn tất!');
+            }
+            resolve();
+          });
+        });
+      }
+
+      // Cập nhật/ghi nhận model đang hoạt động vào file tracking
+      fs.writeFileSync(activeModelPath, MODEL_NAME, 'utf8');
+
       // Chạy ở chế độ background để không block tiến trình khởi động server
       syncMissingEmbeddings(dbInstance).catch(err => {
         console.error('[Vector Search] Lỗi khi tự động đồng bộ hóa index:', err.message);
@@ -75,10 +117,7 @@ async function init(dbInstance) {
   } catch (error) {
     isInitializing = false;
     console.error('[Vector Search] Lỗi nghiêm trọng khi khởi tạo model:', error.message);
-    console.error('[Vector Search] HƯỚNG DẪN TẢI THỦ CÔNG: Nếu không tải được model từ Hugging Face, bạn có thể tải các file sau và đặt vào thư mục backend/models/Xenova/clip-vit-base-patch32:');
-    console.error(` - https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/config.json`);
-    console.error(` - https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/preprocessor_config.json`);
-    console.error(` - https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_quantized.onnx`);
+    console.error('[Vector Search] HƯỚNG DẪN TẢI THỦ CÔNG: Nếu không tải được model từ Hugging Face, bạn có thể tải các file của model ff13/fashion-clip về thư mục backend/models/ff13/fashion-clip');
   }
 }
 
@@ -118,8 +157,12 @@ async function loadRawImage(imageInput) {
   }
 
   // Dùng sharp để resize sang 224x224, convert sang 3 channels (RGB) và xuất buffer raw
+  // Sử dụng fit: 'contain' và nền trắng để giữ nguyên tỷ lệ khung hình của quần áo, tránh bị méo ảnh
   const { data } = await sharp(buffer)
-    .resize(224, 224, { fit: 'fill' })
+    .resize(224, 224, {
+      fit: 'contain',
+      background: { r: 255, g: 255, b: 255 }
+    })
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
