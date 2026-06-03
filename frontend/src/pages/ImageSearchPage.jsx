@@ -45,7 +45,7 @@ const ImageSearchPage = () => {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
-          const compressedBase64 = canvas.toDataURL('image/webp', 0.75);
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
           resolve(compressedBase64);
         };
         img.onerror = (err) => reject(err);
@@ -451,7 +451,7 @@ const ImageSearchPage = () => {
                 <div className="result-img-wrapper">
                   {product.imageUrl ? (
                     <img 
-                      src={`http://${window.location.hostname}:3001${product.imageUrl}`} 
+                      src={product.imageUrl.startsWith('/') ? `http://${window.location.hostname}:3001${product.imageUrl}` : product.imageUrl} 
                       alt="Product" 
                       className="result-img"
                     />
@@ -548,7 +548,7 @@ const ImageSearchPage = () => {
                     style={{ width: '180px', height: '240px', cursor: 'zoom-in', position: 'relative' }}
                     onClick={() => {
                       if (selectedProduct.imageUrl) {
-                        const imgUrl = selectedProduct.imageUrl.startsWith('/uploads') 
+                        const imgUrl = selectedProduct.imageUrl.startsWith('/') 
                           ? `http://${window.location.hostname}:3001${selectedProduct.imageUrl}` 
                           : selectedProduct.imageUrl;
                         setZoomedImage(imgUrl);
@@ -558,7 +558,7 @@ const ImageSearchPage = () => {
                   >
                     {selectedProduct.imageUrl ? (
                       <img 
-                        src={selectedProduct.imageUrl.startsWith('/uploads') ? `http://${window.location.hostname}:3001${selectedProduct.imageUrl}` : selectedProduct.imageUrl} 
+                        src={selectedProduct.imageUrl.startsWith('/') ? `http://${window.location.hostname}:3001${selectedProduct.imageUrl}` : selectedProduct.imageUrl} 
                         alt={selectedProduct.sku} 
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />

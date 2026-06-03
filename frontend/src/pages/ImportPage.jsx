@@ -57,6 +57,10 @@ const playSuccessSound = () => {
 };
 
 const ImportPage = () => {
+  const [shops, setShops] = useState([
+    { id: 'SDR', name: 'SDR', skuPrefix: 'SYC', requireNumberSku: true, requireCamera: false, autoImageFolder: true },
+    { id: 'BATT-BFG', name: 'BATT-BFG', skuPrefix: '', requireNumberSku: false, requireCamera: true, autoImageFolder: false }
+  ]);
   const [formData, setFormData] = useState({
     shop: 'SDR',
     numberSku: '',
@@ -69,6 +73,7 @@ const ImportPage = () => {
   });
   
   const [products, setProducts] = useState([]);
+  const [sdrImageUrl, setSdrImageUrl] = useState(null);
   const [occupiedLocations, setOccupiedLocations] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [recentProducts, setRecentProducts] = useState([]);
@@ -117,6 +122,18 @@ const ImportPage = () => {
 
   useEffect(() => {
     const init = async () => {
+      // Tải cấu hình shop trước
+      try {
+        const res = await fetch(`http://${window.location.hostname}:3001/api/shops`);
+        const result = await res.json();
+        if (result.success && result.data && result.data.length > 0) {
+          setShops(result.data);
+          setFormData(prev => ({ ...prev, shop: result.data[0].id }));
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải danh sách shop từ backend:', err);
+      }
+
       const occupied = await fetchInventory();
       setLoading(false);
 
@@ -150,6 +167,30 @@ const ImportPage = () => {
     };
     init();
   }, []);
+
+  // Lấy ảnh mẫu dựa theo shop, numberSku và productType khi các giá trị này thay đổi
+  useEffect(() => {
+    const fetchShopImage = async () => {
+      const activeShop = shops.find(s => s.id === formData.shop);
+      if (activeShop && activeShop.autoImageFolder && formData.numberSku && formData.productType) {
+        try {
+          const res = await fetch(`http://${window.location.hostname}:3001/api/shop-image?shop=${formData.shop}&numberSku=${formData.numberSku}&productType=${formData.productType}`);
+          const result = await res.json();
+          if (result.success && result.imageUrl) {
+            setSdrImageUrl(result.imageUrl);
+          } else {
+            setSdrImageUrl(null);
+          }
+        } catch (err) {
+          console.error(`Lỗi khi tải ảnh mẫu của shop ${formData.shop}:`, err);
+          setSdrImageUrl(null);
+        }
+      } else {
+        setSdrImageUrl(null);
+      }
+    };
+    fetchShopImage();
+  }, [formData.shop, formData.numberSku, formData.productType, shops]);
 
   // Bộ lọc liên hoàn (Cascading Dropdowns)
   const availableLetters = standardLetters.filter(letter => {
@@ -247,7 +288,7 @@ const ImportPage = () => {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
-          const compressedBase64 = canvas.toDataURL('image/webp', 0.75);
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
           resolve(compressedBase64);
         };
         img.onerror = (err) => reject(err);
@@ -276,16 +317,27 @@ const ImportPage = () => {
   const getGeneratedSku = () => {
     if (!formData.productType || !formData.size) return '';
     
-    const num = formData.numberSku ? formData.numberSku : (formData.shop === 'BATT-BFG' ? '' : '0000');
-    return `${num}${formData.productType}-${formData.size}`;
+    const activeShop = shops.find(s => s.id === formData.shop);
+    if (!activeShop) return '';
+
+    const prefix = activeShop.skuPrefix || '';
+    const requiresNum = activeShop.requireNumberSku;
+    const num = requiresNum ? (formData.numberSku ? formData.numberSku : '0000') : '';
+    return `${prefix}${num}${formData.productType}-${formData.size}`;
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'shop' && value === 'BATT-BFG') {
-      setFormData({ ...formData, [name]: value, numberSku: '' });
+    if (name === 'shop') {
+      const selectedShop = shops.find(s => s.id === value);
+      const requiresNum = selectedShop ? selectedShop.requireNumberSku : true;
+      setFormData(prev => ({
+        ...prev,
+        shop: value,
+        numberSku: requiresNum ? prev.numberSku : ''
+      }));
     } else {
-      setFormData({ ...formData, [name]: value });
+      setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
 
@@ -298,10 +350,19 @@ const ImportPage = () => {
     
     if (!formData.productType) {
       setError('Vui lòng chọn loại sản phẩm.');
+      isSubmittingRef.current = false;
       return;
     }
     if (!formData.size) {
       setError('Vui lòng chọn kích cỡ.');
+      isSubmittingRef.current = false;
+      return;
+    }
+
+    const activeShop = shops.find(s => s.id === formData.shop);
+    if (activeShop && activeShop.requireCamera && !formData.imageUrl) {
+      setError(`Shop ${activeShop.name} yêu cầu phải chụp ảnh.`);
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -361,6 +422,10 @@ const ImportPage = () => {
       isSubmittingRef.current = false;
     }
   };
+
+  const displayImageUrl = formData.imageUrl || (sdrImageUrl ? `http://${window.location.hostname}:3001${sdrImageUrl}` : null);
+  const activeShopObj = shops.find(s => s.id === formData.shop);
+  const requiresNumberSku = activeShopObj ? activeShopObj.requireNumberSku : true;
 
   return (
     <div className="animate-fade-in import-page-outer">
@@ -426,48 +491,49 @@ const ImportPage = () => {
               <div style={{ marginBottom: '20px' }}>
                 <label className="label">Shop</label>
                 <div className="button-selector-group">
-                  {['SDR', 'BATT-BFG'].map(s => (
+                  {shops.map(s => (
                     <button
-                      key={s}
+                      key={s.id}
                       type="button"
-                      className={`btn-selector ${formData.shop === s ? 'active' : ''}`}
+                      className={`btn-selector ${formData.shop === s.id ? 'active' : ''}`}
                       onClick={() => {
-                        if (s === 'BATT-BFG') {
-                          setFormData(prev => ({ ...prev, shop: s, numberSku: '' }));
-                        } else {
-                          setFormData(prev => ({ ...prev, shop: s }));
-                        }
+                        setFormData(prev => ({
+                          ...prev,
+                          shop: s.id,
+                          numberSku: s.requireNumberSku ? prev.numberSku : ''
+                        }));
                       }}
                     >
-                      {s}
+                      {s.name}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div style={{ marginBottom: '20px' }}>
-                <label className="label">Number SKU</label>
-                <input 
-                  type="text" 
-                  name="numberSku" 
-                  value={formData.numberSku} 
-                  onChange={e => {
-                    const val = e.target.value.replace(/\D/g, '').slice(0, 4);
-                    setFormData(prev => ({ ...prev, numberSku: val }));
-                  }}
-                  onBlur={e => {
-                    const val = e.target.value.replace(/\D/g, '');
-                    if (val && val.length < 4) {
-                      setFormData(prev => ({ ...prev, numberSku: val.padStart(4, '0') }));
-                    }
-                  }}
-                  className={`input-field ${formData.shop === 'BATT-BFG' ? 'disabled-opacity' : ''}`}
-                  placeholder="Ví dụ: 0001" 
-                  maxLength={4}
-                  required={formData.shop !== 'BATT-BFG'}
-                  disabled={formData.shop === 'BATT-BFG'}
-                />
-              </div>
+              {requiresNumberSku && (
+                <div style={{ marginBottom: '20px' }}>
+                  <label className="label">Number SKU</label>
+                  <input 
+                    type="text" 
+                    name="numberSku" 
+                    value={formData.numberSku} 
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                      setFormData(prev => ({ ...prev, numberSku: val }));
+                    }}
+                    onBlur={e => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      if (val && val.length < 4) {
+                        setFormData(prev => ({ ...prev, numberSku: val.padStart(4, '0') }));
+                      }
+                    }}
+                    className="input-field"
+                    placeholder="Ví dụ: 0001" 
+                    maxLength={4}
+                    required={true}
+                  />
+                </div>
+              )}
 
               <div style={{ marginBottom: '20px' }}>
                 <label className="label">Loại Sản Phẩm (Category)</label>
@@ -543,12 +609,32 @@ const ImportPage = () => {
                   {formData.imageUrl ? 'Chụp lại ảnh' : 'Mở Camera / Chụp Ảnh'}
                 </button>
                 
-                {formData.imageUrl && (
-                  <img 
-                    src={formData.imageUrl} 
-                    alt="Preview" 
-                    className="import-image-preview-thumbnail-inline"
-                  />
+                {displayImageUrl && (
+                  <div style={{ position: 'relative', display: 'inline-block' }}>
+                    <img 
+                      src={displayImageUrl} 
+                      alt="Preview" 
+                      className="import-image-preview-thumbnail-inline"
+                    />
+                    {!formData.imageUrl && sdrImageUrl && (
+                      <span style={{
+                        position: 'absolute',
+                        bottom: '-5px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        background: 'rgba(59, 130, 246, 0.9)',
+                        color: 'white',
+                        fontSize: '9px',
+                        padding: '1px 4px',
+                        borderRadius: '3px',
+                        whiteSpace: 'nowrap',
+                        fontWeight: 'bold',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                      }}>
+                        Ảnh {activeShopObj?.name || 'Shop'}
+                      </span>
+                    )}
+                  </div>
                 )}
 
                 <button 
@@ -559,7 +645,7 @@ const ImportPage = () => {
                   Xác nhận Nhập Kho
                 </button>
               </div>
-              
+
               <input 
                 type="file" 
                 accept="image/*" 

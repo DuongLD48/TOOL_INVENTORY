@@ -30,6 +30,121 @@ if (!fs.existsSync(uploadsDir)){
 }
 app.use('/uploads', express.static(uploadsDir));
 
+// Cấu hình tải danh sách shop động
+const shopsConfigPath = path.join(__dirname, 'shops_config.json');
+let shopsConfig = [];
+
+const loadShopsConfig = () => {
+  try {
+    if (fs.existsSync(shopsConfigPath)) {
+      const data = fs.readFileSync(shopsConfigPath, 'utf8');
+      shopsConfig = JSON.parse(data);
+      console.log('Đã tải cấu hình shop:', shopsConfig.map(s => s.name).join(', '));
+    } else {
+      console.warn('Tệp shops_config.json không tồn tại. Sử dụng cấu hình mặc định.');
+      shopsConfig = [
+        {
+          "id": "SDR",
+          "name": "SDR",
+          "skuPrefix": "SYC",
+          "requireNumberSku": true,
+          "requireCamera": false,
+          "autoImageFolder": true
+        },
+        {
+          "id": "BATT-BFG",
+          "name": "BATT-BFG",
+          "skuPrefix": "",
+          "requireNumberSku": false,
+          "requireCamera": true,
+          "autoImageFolder": false
+        }
+      ];
+    }
+  } catch (e) {
+    console.error('Lỗi khi đọc shops_config.json:', e);
+  }
+};
+loadShopsConfig();
+
+// Đăng ký tự động các thư mục tĩnh cho shop có autoImageFolder
+shopsConfig.forEach(shop => {
+  if (shop.autoImageFolder) {
+    const shopDirName = `${shop.id.toLowerCase()}_images`;
+    const shopImagesDir = path.join(__dirname, shopDirName);
+    if (!fs.existsSync(shopImagesDir)){
+      fs.mkdirSync(shopImagesDir);
+    }
+    app.use(`/${shopDirName}`, express.static(shopImagesDir));
+    console.log(`Đã đăng ký thư mục tĩnh: /${shopDirName} -> ${shopImagesDir}`);
+  }
+});
+
+// Hàm tìm kiếm ảnh cho bất kỳ shop nào được cấu hình autoImageFolder
+const findShopImage = (shopId, numberSku, productType) => {
+  if (!shopId || !numberSku || !productType) return null;
+
+  const shop = shopsConfig.find(s => s.id.toUpperCase() === shopId.toUpperCase());
+  if (!shop || !shop.autoImageFolder) return null;
+
+  const skuPrefix = (shop.skuPrefix || '').trim().toUpperCase();
+  const cleanNumber = numberSku.trim();
+  let cleanType = productType.trim().toUpperCase();
+  if (cleanType === 'WWRE') {
+    cleanType = 'WRES';
+  }
+  
+  const shopDirName = `${shop.id.toLowerCase()}_images`;
+  const shopImagesDir = path.join(__dirname, shopDirName);
+
+  try {
+    if (!fs.existsSync(shopImagesDir)) return null;
+
+    const items = fs.readdirSync(shopImagesDir);
+    for (const item of items) {
+      const itemPath = path.join(shopImagesDir, item);
+      const stat = fs.statSync(itemPath);
+
+      if (stat.isDirectory()) {
+        const targetSuffix = `${skuPrefix}${cleanNumber}`.toUpperCase();
+        if (item.toUpperCase().endsWith(targetSuffix)) {
+          const typePath = path.join(itemPath, cleanType);
+          if (fs.existsSync(typePath) && fs.statSync(typePath).isDirectory()) {
+            const files = fs.readdirSync(typePath);
+            const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+            
+            // Xác định hậu tố của ảnh được ưu tiên (FSHO: 01, còn lại: 02)
+            const preferredSuffix = cleanType === 'FSHO' ? '01' : '02';
+            
+            // 1. Tìm ảnh khớp với hậu tố ưu tiên (ví dụ FSHO-01.jpg hoặc LSRG-02.jpg)
+            let imageFile = files.find(file => {
+              const ext = path.extname(file).toLowerCase();
+              if (!imageExtensions.includes(ext)) return false;
+              const nameWithoutExt = path.basename(file, ext).toUpperCase();
+              return nameWithoutExt.endsWith(`-${preferredSuffix}`) || nameWithoutExt.includes(preferredSuffix);
+            });
+            
+            // 2. Nếu không tìm thấy ảnh có hậu tố ưu tiên, lấy ảnh hợp lệ đầu tiên làm fallback
+            if (!imageFile) {
+              imageFile = files.find(file => {
+                return imageExtensions.includes(path.extname(file).toLowerCase());
+              });
+            }
+
+            if (imageFile) {
+              return `/${shopDirName}/${item}/${cleanType}/${imageFile}`;
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error(`Lỗi khi quét thư mục ảnh cho shop ${shopId}:`, e);
+  }
+  return null;
+};
+
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -55,6 +170,24 @@ app.get('/api/network-ip', (req, res) => {
   res.json({ ip: localIp });
 });
 
+// 0.5. Lấy danh sách các shop cấu hình trong hệ thống
+app.get('/api/shops', (req, res) => {
+  res.json({ success: true, data: shopsConfig });
+});
+
+// 0.6. Tìm kiếm ảnh cho shop dựa theo ID shop, numberSku và productType
+const handleShopImageRequest = (req, res) => {
+  const { shop, numberSku, productType } = req.query;
+  const targetShop = shop || 'SDR'; // Fallback nếu không truyền shop
+  try {
+    const imageUrl = findShopImage(targetShop, numberSku, productType);
+    res.json({ success: true, imageUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+app.get('/api/shop-image', handleShopImageRequest);
+app.get('/api/sdr-image', handleShopImageRequest);
 
 // 1. Lấy danh sách sản phẩm đang tồn kho (IN_STOCK hoặc PENDING)
 app.get('/api/inventory', (req, res) => {
@@ -87,9 +220,15 @@ app.post('/api/inventory/search-image', async (req, res) => {
 app.post('/api/inventory/import', (req, res) => {
   let { sku, location, shop, numberSku, productType, size, imageUrl } = req.body;
   
-  // Validation cơ bản (tuỳ thuộc logic shop)
-  if (shop === 'BATT-BFG' && (!imageUrl || !location)) {
-    return res.status(400).json({ error: 'Shop BATT-BFG yêu cầu phải có ảnh (imageUrl) và vị trí (location).' });
+  // Lấy cấu hình shop để validation động
+  const shopObj = shopsConfig.find(s => s.id === shop);
+  if (shopObj) {
+    if (shopObj.requireCamera && !imageUrl) {
+      return res.status(400).json({ error: `Shop ${shop} yêu cầu phải có ảnh.` });
+    }
+    if (shopObj.id === 'BATT-BFG' && !location) {
+      return res.status(400).json({ error: 'Shop BATT-BFG yêu cầu phải có vị trí (location).' });
+    }
   }
 
   const now = new Date().toISOString();
@@ -111,6 +250,14 @@ app.post('/api/inventory/import', (req, res) => {
       }
     } catch (e) {
       console.error('Lỗi khi lưu ảnh ra file:', e);
+    }
+  }
+
+  // Tự động tìm kiếm ảnh từ thư mục nếu được cấu hình autoImageFolder
+  if (shopObj && shopObj.autoImageFolder && (!imageUrl || imageUrl === '')) {
+    const matchedImg = findShopImage(shop, numberSku, productType);
+    if (matchedImg) {
+      imageUrl = matchedImg;
     }
   }
 
@@ -160,6 +307,89 @@ app.post('/api/inventory/import', (req, res) => {
     insertProduct();
   }
 });
+
+// 2.5. Đồng bộ hóa toàn bộ ảnh của các shop có autoImageFolder với thư mục ảnh tương ứng
+const handleSyncShopImages = (req, res) => {
+  const autoShops = shopsConfig.filter(s => s.autoImageFolder).map(s => s.id);
+  
+  if (autoShops.length === 0) {
+    return res.json({ message: 'Không có shop nào cấu hình tự động quét ảnh.', updatedCount: 0 });
+  }
+
+  const placeholders = autoShops.map(() => '?').join(',');
+  const queryStr = `SELECT * FROM products WHERE shop IN (${placeholders}) AND (status = 'IN_STOCK' OR status = 'PENDING')`;
+
+  db.all(queryStr, autoShops, async (err, products) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    if (!products || products.length === 0) {
+      return res.json({ message: 'Không có sản phẩm nào cần đồng bộ.', updatedCount: 0 });
+    }
+
+    let updatedCount = 0;
+    const now = new Date().toISOString();
+
+    for (const product of products) {
+      const matchedImg = findShopImage(product.shop, product.numberSku, product.productType);
+      
+      // Nếu tìm thấy ảnh mới và ảnh này khác ảnh hiện tại trong db
+      if (matchedImg && matchedImg !== product.imageUrl) {
+        try {
+          await new Promise((resolve, reject) => {
+            db.run("UPDATE products SET imageUrl = ?, updatedAt = ? WHERE id = ?", [matchedImg, now, product.id], function(updateErr) {
+              if (updateErr) reject(updateErr);
+              else resolve();
+            });
+          });
+          
+          updatedCount++;
+
+          // Cập nhật Vector Index cho sản phẩm này
+          vectorSearch.indexProduct(db, product.id, matchedImg);
+          
+          // Phát tin realtime
+          io.emit('inventory_updated', { 
+            type: 'UPDATE_IMAGE', 
+            product: { ...product, imageUrl: matchedImg, updatedAt: now } 
+          });
+        } catch (e) {
+          console.error(`Lỗi đồng bộ ảnh cho sản phẩm ID ${product.id}:`, e);
+        }
+      } else {
+        // Nếu không tìm thấy ảnh khớp mới hoặc giữ nguyên, kiểm tra xem ảnh hiện tại trong DB có tồn tại trên đĩa không
+        if (product.imageUrl && product.imageUrl.trim() !== '') {
+          const absoluteImagePath = path.join(__dirname, product.imageUrl);
+          if (!fs.existsSync(absoluteImagePath)) {
+            console.warn(`[Sync] Không tìm thấy ảnh tại ${absoluteImagePath} cho SKU ${product.sku}. Đang xóa link ảnh lỗi khỏi database.`);
+            try {
+              await new Promise((resolve, reject) => {
+                db.run("UPDATE products SET imageUrl = '', embedding = NULL, updatedAt = ? WHERE id = ?", [now, product.id], function(updateErr) {
+                  if (updateErr) reject(updateErr);
+                  else resolve();
+                });
+              });
+              
+              // Phát tin realtime để UI cập nhật (xóa ảnh xem trước)
+              io.emit('inventory_updated', { 
+                type: 'UPDATE_IMAGE', 
+                product: { ...product, imageUrl: '', embedding: null, updatedAt: now } 
+              });
+            } catch (e) {
+              console.error(`Lỗi dọn dẹp ảnh lỗi cho sản phẩm ID ${product.id}:`, e);
+            }
+          }
+        }
+      }
+    }
+
+    res.json({ message: `Đồng bộ hoàn tất. Đã cập nhật ảnh cho ${updatedCount} sản phẩm.`, updatedCount });
+  });
+};
+
+app.post('/api/inventory/sync-shop-images', handleSyncShopImages);
+app.post('/api/inventory/sync-sdr-images', handleSyncShopImages);
 
 // 3. Xuất kho theo SKU hoặc ID (Lấy ra sản phẩm đang IN_STOCK và chuyển thành EXPORTED)
 app.post('/api/inventory/export', (req, res) => {
@@ -770,7 +1000,7 @@ io.on('connection', (socket) => {
 });
 
 // --- START SERVER ---
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server Backend (API & Realtime) đang chạy tại http://localhost:${PORT}`);
   // Khởi tạo vector search model và chạy tự động indexing

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "SDR",
+    "name": "SDR",
+    "skuPrefix": "",
+    "requireNumberSku": true,
+    "requireCamera": false,
+    "autoImageFolder": true
+  },
+  {
+    "id": "BATT-BFG",
+    "name": "BATT-BFG",
+    "skuPrefix": "",
+    "requireNumberSku": false,
+    "requireCamera": true,
+    "autoImageFolder": false
+  }
+]

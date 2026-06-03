@@ -25,8 +25,6 @@ async function initTransformers() {
   try {
     const transformers = await import('@xenova/transformers');
     CLIPVisionModelWithProjection = transformers.CLIPVisionModelWithProjection;
-    AutoProcessor = transformers.AutoProcessor;
-    RawImage = transformers.RawImage;
     env = transformers.env;
 
     // Cấu hình cache thư mục
@@ -60,9 +58,8 @@ async function init(dbInstance) {
 
     console.log('[Vector Search] Đang tải Model CLIP ViT-B-32 vào RAM (việc này có thể mất vài phút trong lần chạy đầu tiên)...');
     
-    // Tải vision model và processor
+    // Tải vision model
     model = await CLIPVisionModelWithProjection.from_pretrained(MODEL_NAME);
-    processor = await AutoProcessor.from_pretrained(MODEL_NAME);
     
     isReady = true;
     isInitializing = false;
@@ -96,7 +93,7 @@ function cosineSimilarity(vecA, vecB) {
   return vecA.reduce((sum, val, i) => sum + val * vecB[i], 0);
 }
 
-// Chuyển đổi đầu vào ảnh thành RawImage của Transformers.js sử dụng sharp
+// Chuyển đổi đầu vào ảnh thành dữ liệu pixel raw RGB 224x224 sử dụng sharp
 async function loadRawImage(imageInput) {
   let buffer;
   if (typeof imageInput === 'string') {
@@ -121,13 +118,13 @@ async function loadRawImage(imageInput) {
   }
 
   // Dùng sharp để resize sang 224x224, convert sang 3 channels (RGB) và xuất buffer raw
-  const { data, info } = await sharp(buffer)
+  const { data } = await sharp(buffer)
     .resize(224, 224, { fit: 'fill' })
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  return new RawImage(new Uint8Array(data), info.width, info.height, 3);
+  return data;
 }
 
 // Trích xuất vector đặc trưng từ ảnh (Trả về mảng 512 số float đã được L2 normalized)
@@ -136,13 +133,25 @@ async function getEmbedding(imageInput) {
     throw new Error('Model CLIP chưa được nạp. Vui lòng đợi hoặc kiểm tra cấu hình.');
   }
 
-  const rawImage = await loadRawImage(imageInput);
+  const rawRgbBuffer = await loadRawImage(imageInput);
   
-  // Tiền xử lý ảnh qua processor của CLIP
-  const imageInputs = await processor(rawImage);
-  
+  // Tự tính toán chuẩn hóa (normalization) và chuyển thành định dạng Planar Tensor [1, 3, 224, 224]
+  // CLIP normalization constants: mean = [0.48145466, 0.4578275, 0.40821073], std = [0.26862954, 0.26130258, 0.27577711]
+  const floatData = new Float32Array(150528);
+  const mean = [0.48145466, 0.4578275, 0.40821073];
+  const std = [0.26862954, 0.26130258, 0.27577711];
+
+  for (let i = 0; i < 224 * 224; i++) {
+    floatData[i] = (rawRgbBuffer[i * 3 + 0] / 255.0 - mean[0]) / std[0]; // R
+    floatData[224 * 224 + i] = (rawRgbBuffer[i * 3 + 1] / 255.0 - mean[1]) / std[1]; // G
+    floatData[2 * 224 * 224 + i] = (rawRgbBuffer[i * 3 + 2] / 255.0 - mean[2]) / std[2]; // B
+  }
+
+  const transformers = await import('@xenova/transformers');
+  const pixel_values = new transformers.Tensor('float32', floatData, [1, 3, 224, 224]);
+
   // Chạy model để trích xuất vector đặc trưng (image embeddings)
-  const { image_embeds } = await model(imageInputs);
+  const { image_embeds } = await model({ pixel_values });
   
   // Chuyển Tensor thành Array và Normalize
   const rawVector = Array.from(image_embeds.data);
@@ -174,7 +183,12 @@ async function syncMissingEmbeddings(db) {
         const absoluteImagePath = path.join(__dirname, relativeImagePath);
         
         if (!fs.existsSync(absoluteImagePath)) {
-          console.warn(`[Vector Search] Bỏ qua SKU ${row.sku}: Không tìm thấy file ảnh tại ${absoluteImagePath}`);
+          console.warn(`[Vector Search] Không tìm thấy ảnh tại ${absoluteImagePath} cho SKU ${row.sku}. Đang dọn dẹp link ảnh lỗi khỏi database.`);
+          await new Promise((resolve) => {
+            db.run("UPDATE products SET imageUrl = '', embedding = NULL, updatedAt = ? WHERE id = ?", [new Date().toISOString(), row.id], () => {
+              resolve();
+            });
+          });
           continue;
         }
 
@@ -216,7 +230,8 @@ async function indexProduct(db, id, imageUrl) {
   try {
     const absoluteImagePath = path.join(__dirname, imageUrl);
     if (!fs.existsSync(absoluteImagePath)) {
-      console.warn(`[Vector Search] Không tìm thấy ảnh sản phẩm tại ${absoluteImagePath} để lập chỉ mục.`);
+      console.warn(`[Vector Search] Không tìm thấy ảnh tại ${absoluteImagePath} để lập chỉ mục cho sản phẩm ID ${id}. Đang xóa link ảnh lỗi khỏi database.`);
+      db.run("UPDATE products SET imageUrl = '', embedding = NULL, updatedAt = ? WHERE id = ?", [new Date().toISOString(), id]);
       return;
     }
 

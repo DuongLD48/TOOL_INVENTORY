@@ -4,6 +4,10 @@ import { ClipboardList, CheckCircle2, XCircle, AlertCircle, Copy, Check, ArrowRi
 import './OrderMatchingPage.css';
 
 const OrderMatchingPage = () => {
+  const [shops, setShops] = useState([
+    { id: 'SDR', name: 'SDR', skuPrefix: 'SYC', requireNumberSku: true, requireCamera: false, autoImageFolder: true },
+    { id: 'BATT-BFG', name: 'BATT-BFG', skuPrefix: '', requireNumberSku: false, requireCamera: true, autoImageFolder: false }
+  ]);
   const [rawText, setRawText] = useState('');
   const [matchingMode, setMatchingMode] = useState('sku_only'); // 'sku_only' or 'replace_drive'
   const [selectedShop, setSelectedShop] = useState('SDR'); // 'SDR', 'BATT-BFG' or 'OTHER'
@@ -27,6 +31,23 @@ const OrderMatchingPage = () => {
       console.error('Lỗi tải tồn kho:', err);
     }
   };
+
+  // Load shops configuration
+  useEffect(() => {
+    const fetchShops = async () => {
+      try {
+        const res = await fetch(`http://${window.location.hostname}:3001/api/shops`);
+        const result = await res.json();
+        if (result.success && result.data && result.data.length > 0) {
+          setShops(result.data);
+          setSelectedShop(result.data[0].id);
+        }
+      } catch (err) {
+        console.error('Lỗi tải danh sách shop:', err);
+      }
+    };
+    fetchShops();
+  }, []);
 
   useEffect(() => {
     fetchInStockProducts();
@@ -77,13 +98,16 @@ const OrderMatchingPage = () => {
       let orderId = '';
       let date = '';
 
+      const activeShop = shops.find(s => s.id === selectedShop);
+      const isNumberSkuShop = activeShop ? activeShop.requireNumberSku : (selectedShop === 'SDR');
+
       if (matchingMode === 'replace_drive') {
         skuIndex = 3;
         orderIdIndex = 1;
         rawSku = parts[3] ? parts[3].trim() : '';
         orderId = parts[1] ? parts[1].trim() : '';
         date = parts[0] ? parts[0].trim() : '';
-      } else if (selectedShop === 'SDR') {
+      } else if (isNumberSkuShop) {
         skuIndex = 1;
         rawSku = parts[1] ? parts[1].trim() : '';
         date = parts[0] ? parts[0].trim() : '';
@@ -91,10 +115,11 @@ const OrderMatchingPage = () => {
           date = date.replace(/Đơn\s*hàng/gi, '').trim();
         }
 
-        // Quét ngược từ cuối dòng để tìm cột chứa mã đơn hàng (có dấu # hoặc chứa 'sdr')
+        // Quét ngược từ cuối dòng để tìm cột chứa mã đơn hàng (có dấu # hoặc chứa tên shop)
+        const shopLower = selectedShop.toLowerCase();
         for (let i = parts.length - 1; i >= 0; i--) {
           const cell = parts[i].trim();
-          if (cell.includes('#') || cell.toLowerCase().includes('sdr')) {
+          if (cell.includes('#') || cell.toLowerCase().includes(shopLower)) {
             orderIdIndex = i;
             orderId = cell;
             break;
@@ -110,7 +135,7 @@ const OrderMatchingPage = () => {
         // Quét tìm cột SKU, cột Mã đơn hàng (bắt đầu bằng #), và cột Google Drive link
         for (let i = 0; i < parts.length; i++) {
           const cell = parts[i].trim();
-          if (cell.match(skuRegex) || cell.toUpperCase().startsWith('SYC')) {
+          if (cell.match(skuRegex) || (activeShop?.skuPrefix && cell.toUpperCase().startsWith(activeShop.skuPrefix))) {
             skuIndex = i;
           }
           if (cell.startsWith('#') && !cell.includes('/') && !cell.includes('.')) {
@@ -133,8 +158,9 @@ const OrderMatchingPage = () => {
         }
 
         if (orderIdIndex === -1 && parts.length > 0) {
-          // Tìm cột đầu tiên chứa text bắt đầu bằng # hoặc có dạng sdr
-          const foundIdx = parts.findIndex(p => p.trim().toLowerCase().startsWith('#') || p.trim().toLowerCase().includes('sdr'));
+          // Tìm cột đầu tiên chứa text bắt đầu bằng # hoặc có dạng shop id
+          const shopLower = selectedShop.toLowerCase();
+          const foundIdx = parts.findIndex(p => p.trim().toLowerCase().startsWith('#') || p.trim().toLowerCase().includes(shopLower));
           orderIdIndex = foundIdx !== -1 ? foundIdx : 0;
         }
 
@@ -395,22 +421,17 @@ const OrderMatchingPage = () => {
       <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap' }}>
         <span style={{ fontWeight: 'bold', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Cấu trúc file đơn hàng (Shop):</span>
         <div className="glass-panel" style={{ display: 'flex', padding: '2px', gap: '2px', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-          <button
-            type="button"
-            className={`view-mode-toggle-btn ${selectedShop === 'SDR' ? 'active' : ''}`}
-            onClick={() => setSelectedShop('SDR')}
-            style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '6px' }}
-          >
-            SDR (Cột 1: Ngày, Cột 2: SKU, Cột 9: Đơn)
-          </button>
-          <button
-            type="button"
-            className={`view-mode-toggle-btn ${selectedShop === 'BATT-BFG' ? 'active' : ''}`}
-            onClick={() => setSelectedShop('BATT-BFG')}
-            style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '6px' }}
-          >
-            BATT-BFG (Tự động quét)
-          </button>
+          {shops.map(shop => (
+            <button
+              key={shop.id}
+              type="button"
+              className={`view-mode-toggle-btn ${selectedShop === shop.id ? 'active' : ''}`}
+              onClick={() => setSelectedShop(shop.id)}
+              style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '6px' }}
+            >
+              {shop.name} ({shop.requireNumberSku ? 'SKU & Đơn Cố Định' : 'Tự Động Quét'})
+            </button>
+          ))}
           <button
             type="button"
             className={`view-mode-toggle-btn ${selectedShop === 'OTHER' ? 'active' : ''}`}

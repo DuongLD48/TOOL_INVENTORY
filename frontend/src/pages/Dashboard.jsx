@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useSocket } from '../context/SocketContext';
-import { MapPin, Box, ImageOff, Search, LayoutGrid, List, Map, Printer, Trash2, Smartphone, Image as ImageIcon } from 'lucide-react';
+import { MapPin, Box, ImageOff, Search, LayoutGrid, List, Map, Printer, Trash2, Smartphone, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import './Dashboard.css';
 
@@ -18,6 +18,7 @@ const Dashboard = () => {
   const [mapListSubView, setMapListSubView] = useState('minimal'); // 'minimal' or 'image'
   const [mapListLayout, setMapListLayout] = useState('grid'); // 'grid' or 'stack'
   const [zoomedImage, setZoomedImage] = useState(null);
+  const [syncingSdr, setSyncingSdr] = useState(false);
   const socket = useSocket();
 
   const fetchInventory = async () => {
@@ -362,7 +363,7 @@ const Dashboard = () => {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            const compressedBase64 = canvas.toDataURL('image/webp', 0.75);
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
             resolve(compressedBase64);
           };
           img.onerror = (err) => reject(err);
@@ -393,19 +394,37 @@ const Dashboard = () => {
     }
   };
 
+  const handleSyncShopImages = async () => {
+    setSyncingSdr(true);
+    try {
+      const res = await fetch(`http://${window.location.hostname}:3001/api/inventory/sync-shop-images`, {
+        method: 'POST'
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Lỗi đồng bộ.');
+      
+      // Tải lại toàn bộ dữ liệu tồn kho để cập nhật UI
+      await fetchInventory();
+      alert(result.message);
+    } catch (err) {
+      alert(`Lỗi đồng bộ: ${err.message}`);
+    } finally {
+      setSyncingSdr(false);
+    }
+  };
+
   const renderMapCell = (loc) => {
     const cellProducts = getProductsInLoc(loc);
     const visible = isCompartmentVisible(loc);
     const count = cellProducts.length;
     
     if (count > 0) {
-      const hasSdr = cellProducts.some(p => p.shop === 'SDR');
-      const hasBatt = cellProducts.some(p => p.shop === 'BATT-BFG');
-      
-      let shopClass = 'shop-sdr';
-      if (hasBatt && !hasSdr) {
-        shopClass = 'shop-batt';
-      } else if (hasSdr && hasBatt) {
+      const uniqueShops = Array.from(new Set(cellProducts.map(p => p.shop)));
+      let shopClass = '';
+      if (uniqueShops.length === 1) {
+        const id = uniqueShops[0].toLowerCase();
+        shopClass = `shop-${id === 'batt-bfg' ? 'batt' : id}`;
+      } else {
         shopClass = 'shop-mixed';
       }
 
@@ -426,13 +445,17 @@ const Dashboard = () => {
           
           {/* Subtle dots/icons indicating shops */}
           <div className="map-cell-dots-container">
-            {Array.from(new Set(cellProducts.map(p => p.shop))).map(shop => (
-              <span 
-                key={shop} 
-                className={`map-cell-dot ${shop === 'SDR' ? 'sdr' : 'batt'}`}
-                title={shop}
-              />
-            ))}
+            {uniqueShops.map(shop => {
+              const cleanShop = shop.toLowerCase();
+              const dotClass = cleanShop === 'sdr' ? 'sdr' : cleanShop === 'batt-bfg' ? 'batt' : cleanShop;
+              return (
+                <span 
+                  key={shop} 
+                  className={`map-cell-dot ${dotClass}`}
+                  title={shop}
+                />
+              );
+            })}
           </div>
         </div>
       );
@@ -460,26 +483,47 @@ const Dashboard = () => {
             : `(${viewMode === 'map' ? allLayoutLocations.length : products.length})`}
         </h1>
         
-        {/* Toggle chế độ hiển thị */}
-        <div className="glass-panel view-mode-toggle-container">
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
-            onClick={() => setViewMode('list')}
-            className={`view-mode-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+            onClick={handleSyncShopImages}
+            disabled={syncingSdr}
+            className="btn btn-secondary sync-sdr-btn"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '13px',
+              padding: '8px 14px',
+              fontWeight: 'bold',
+              height: '38px',
+              boxSizing: 'border-box'
+            }}
           >
-            <List size={16} /> Tồn kho (List)
+            <RefreshCw size={14} className={syncingSdr ? 'spin-animation' : ''} />
+            {syncingSdr ? 'Đang đồng bộ...' : 'Đồng bộ ảnh Shop'}
           </button>
-          <button
-            onClick={() => setViewMode('grid')}
-            className={`view-mode-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
-          >
-            <LayoutGrid size={16} /> Tồn kho (Lưới)
-          </button>
-          <button
-            onClick={() => setViewMode('map')}
-            className={`view-mode-toggle-btn ${viewMode === 'map' ? 'active' : ''}`}
-          >
-            <Map size={16} /> Sơ đồ kho
-          </button>
+
+          {/* Toggle chế độ hiển thị */}
+          <div className="glass-panel view-mode-toggle-container" style={{ height: '38px', boxSizing: 'border-box', alignItems: 'center' }}>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`view-mode-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+            >
+              <List size={16} /> Tồn kho (List)
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`view-mode-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+            >
+              <LayoutGrid size={16} /> Tồn kho (Lưới)
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`view-mode-toggle-btn ${viewMode === 'map' ? 'active' : ''}`}
+            >
+              <Map size={16} /> Sơ đồ kho
+            </button>
+          </div>
         </div>
       </div>
 
@@ -554,7 +598,7 @@ const Dashboard = () => {
               {/* Ảnh nhỏ */}
               <div className="list-view-card-image-box">
                 {product.imageUrl ? (
-                  <img src={product.imageUrl.startsWith('/uploads') ? `http://${window.location.hostname}:3001${product.imageUrl}` : product.imageUrl} alt={product.sku} loading="lazy" />
+                  <img src={product.imageUrl.startsWith('/') ? `http://${window.location.hostname}:3001${product.imageUrl}` : product.imageUrl} alt={product.sku} loading="lazy" />
                 ) : (
                   <ImageOff size={20} style={{ opacity: 0.3 }} />
                 )}
@@ -603,7 +647,7 @@ const Dashboard = () => {
               {/* Ảnh Sản Phẩm */}
               <div className="grid-view-card-image-box">
                 {product.imageUrl ? (
-                  <img src={product.imageUrl.startsWith('/uploads') ? `http://${window.location.hostname}:3001${product.imageUrl}` : product.imageUrl} alt={`${product.id}#${product.sku}`} loading="lazy" />
+                  <img src={product.imageUrl.startsWith('/') ? `http://${window.location.hostname}:3001${product.imageUrl}` : product.imageUrl} alt={`${product.id}#${product.sku}`} loading="lazy" />
                 ) : (
                   <div className="grid-view-no-image-box">
                     <ImageOff size={40} style={{ opacity: 0.5 }} />
@@ -843,7 +887,7 @@ const Dashboard = () => {
                                     <div className="map-list-product-img-box-34">
                                       {product.imageUrl ? (
                                         <img 
-                                          src={product.imageUrl.startsWith('/uploads') ? `http://${window.location.hostname}:3001${product.imageUrl}` : product.imageUrl} 
+                                          src={product.imageUrl.startsWith('/') ? `http://${window.location.hostname}:3001${product.imageUrl}` : product.imageUrl} 
                                           alt={product.sku} 
                                           loading="lazy"
                                         />
@@ -974,7 +1018,7 @@ const Dashboard = () => {
                             className="modal-product-thumbnail-box"
                             onClick={() => {
                               if (product.imageUrl) {
-                                const imgUrl = product.imageUrl.startsWith('/uploads') 
+                                const imgUrl = product.imageUrl.startsWith('/') 
                                   ? `http://${window.location.hostname}:3001${product.imageUrl}` 
                                   : product.imageUrl;
                                 setZoomedImage(imgUrl);
@@ -984,7 +1028,7 @@ const Dashboard = () => {
                           >
                             {product.imageUrl ? (
                               <img 
-                                src={product.imageUrl.startsWith('/uploads') ? `http://${window.location.hostname}:3001${product.imageUrl}` : product.imageUrl} 
+                                src={product.imageUrl.startsWith('/') ? `http://${window.location.hostname}:3001${product.imageUrl}` : product.imageUrl} 
                                 alt={product.sku} 
                               />
                             ) : (
