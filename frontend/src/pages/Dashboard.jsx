@@ -876,6 +876,10 @@ const Dashboard = () => {
                           
                           <div className="map-list-column-products">
                             {filteredCompProducts.map(product => {
+                              const subPos = product.location && product.location.includes('-') 
+                                ? product.location.split('-')[1] 
+                                : '1';
+                                
                               if (mapListSubView === 'image') {
                                 return (
                                   <div 
@@ -896,7 +900,10 @@ const Dashboard = () => {
                                       )}
                                     </div>
                                     <div className="map-list-product-img-details">
-                                      <span className="badge-shop-minimal" style={{ margin: '0 auto 4px auto', display: 'inline-block' }}>{product.shop}</span>
+                                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', marginBottom: '4px', flexWrap: 'wrap' }}>
+                                        <span className="badge-subpos-minimal">#{subPos}</span>
+                                        <span className="badge-shop-minimal">{product.shop}</span>
+                                      </div>
                                       <div className="sku-text-image-mode" title={product.sku}>{product.sku}</div>
                                       {product.status === 'PENDING' && (
                                         <span className="badge-pending" style={{ fontSize: '9px', padding: '2px 4px', marginTop: '4px' }}>PENDING</span>
@@ -905,9 +912,6 @@ const Dashboard = () => {
                                   </div>
                                 );
                               } else {
-                                const subPos = product.location && product.location.includes('-') 
-                                  ? product.location.split('-')[1] 
-                                  : '1';
                                 return (
                                   <div 
                                     key={product.id} 

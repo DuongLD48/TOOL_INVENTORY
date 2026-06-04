@@ -9,7 +9,7 @@ Cấu trúc JSON gốc cho sản phẩm trong hệ thống quản lý tồn kho:
   "location": "A1", // Vị trí trong kho (VD: A1, B3)
   "shop": "SDR", // Giá trị: "SDR" hoặc "BATT-BFG"
   "numberSku": "0001", // Số SKU (VD: 0001, 0206)
-  "productType": "SSRG", // Giá trị: "SSRG", "LSRG", "WSRG", "WLRG", "FSHO", "GSHO", "WRES", "WWRE"
+  "productType": "SSRG", // Giá trị: "SSRG", "LSRG", "WSRG", "WLRG", "FSHO", "GSHO", "WRES", "WWRE", "KWRE"
   "size": "L", // Giá trị: "2XS", "XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"
   "imageUrl": "", // Đường dẫn ảnh (Trống nếu là SDR, bắt buộc có link ảnh nếu là BATT-BFG)
   "status": "IN_STOCK", // Trạng thái: "IN_STOCK" (Tồn kho) hoặc "EXPORTED" (Đã xuất)

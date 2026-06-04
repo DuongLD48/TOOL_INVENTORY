@@ -90,7 +90,7 @@ const findShopImage = (shopId, numberSku, productType) => {
   const skuPrefix = (shop.skuPrefix || '').trim().toUpperCase();
   const cleanNumber = numberSku.trim();
   let cleanType = productType.trim().toUpperCase();
-  if (cleanType === 'WWRE') {
+  if (cleanType === 'WWRE' || cleanType === 'KWRE') {
     cleanType = 'WRES';
   }
   

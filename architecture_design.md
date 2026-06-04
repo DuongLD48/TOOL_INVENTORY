@@ -14,7 +14,7 @@ Chúng ta sẽ tạo một bảng duy nhất là `products` với các trường
 - `location` (TEXT): Vị trí (VD: `A1`)
 - `shop` (TEXT): `SDR` hoặc `BATT-BFG`
 - `numberSku` (TEXT): `0001`
-- `productType` (TEXT): `SSRG`, `LSRG`, `WSRG`, `WLRG`, `FSHO`, `GSHO`, `WRES`, `WWRE`
+- `productType` (TEXT): `SSRG`, `LSRG`, `WSRG`, `WLRG`, `FSHO`, `GSHO`, `WRES`, `WWRE`, `KWRE`
 - `size` (TEXT): `2XS` đến `5XL`
 - `imageUrl` (TEXT): Link ảnh chụp (Null nếu shop SDR)
 - `status` (TEXT): `IN_STOCK` hoặc `EXPORTED`
