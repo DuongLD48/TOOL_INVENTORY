@@ -16,8 +16,16 @@ standardLetters.forEach(letter => {
   });
 });
 
-const findFirstEmptyLocation = (occupiedSet) => {
-  for (const loc of standardLocations) {
+const findFirstEmptyLocation = (occupiedSet, isSpecialType = false) => {
+  let startIndex = 0;
+  if (isSpecialType) {
+    const index = standardLocations.indexOf('E1-1');
+    if (index !== -1) {
+      startIndex = index;
+    }
+  }
+  for (let i = startIndex; i < standardLocations.length; i++) {
+    const loc = standardLocations[i];
     if (!occupiedSet.has(loc)) {
       return loc;
     }
@@ -341,6 +349,24 @@ const ImportPage = () => {
     }
   };
 
+  const handleProductTypeChange = (type) => {
+    const isSpecialType = type === 'GSHO' || type === 'FSHO';
+    const firstEmpty = findFirstEmptyLocation(occupiedLocations, isSpecialType);
+    
+    setFormData(prev => {
+      const nextData = { ...prev, productType: type };
+      if (firstEmpty) {
+        const parsed = parseLocation(firstEmpty);
+        if (parsed) {
+          nextData.locLetter = parsed.letter;
+          nextData.locNumber = parsed.number;
+          nextData.locSubPosition = parsed.sub;
+        }
+      }
+      return nextData;
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmittingRef.current) return;
@@ -543,7 +569,7 @@ const ImportPage = () => {
                       key={type}
                       type="button"
                       className={`btn-selector ${formData.productType === type ? 'active' : ''}`}
-                      onClick={() => setFormData(prev => ({ ...prev, productType: type }))}
+                      onClick={() => handleProductTypeChange(type)}
                     >
                       {type}
                     </button>
