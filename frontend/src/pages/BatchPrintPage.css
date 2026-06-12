@@ -430,3 +430,169 @@
   font-weight: 500;
 }
 
+/* ===== Lịch sử in & Tabs ===== */
+.print-history-tabs-container {
+  padding: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.print-history-tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Outfit', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.print-history-tab-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.print-history-tab-btn.active {
+  background: var(--accent-primary);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.batch-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.batch-history-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 18px;
+  transition: all 0.2s ease;
+}
+
+.batch-history-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.batch-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.batch-history-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.batch-history-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.batch-history-time svg {
+  color: var(--accent-primary);
+}
+
+.batch-history-details {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.batch-history-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.print-btn-revert {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+  color: #fca5a5;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.print-btn-revert:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: white;
+}
+
+.print-btn-revert:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.batch-history-products-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.batch-product-badge {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.batch-product-shop {
+  color: white;
+  font-weight: bold;
+}
+
+.batch-product-sku {
+  color: #a78bfa;
+  font-family: monospace;
+}
+
+.batch-product-type-size {
+  background: rgba(167, 139, 250, 0.1);
+  color: #c084fc;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.batch-product-loc {
+  color: #f59e0b;
+}
+
+.batch-product-id {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+

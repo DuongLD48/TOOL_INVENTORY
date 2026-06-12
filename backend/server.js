@@ -498,6 +498,85 @@ app.post('/api/inventory/mark-printed', (req, res) => {
   });
 });
 
+// 5.5. Lấy lịch sử in tem nhãn gom nhóm theo lượt in (createdAt)
+app.get('/api/inventory/print-history', (req, res) => {
+  const query = `
+    SELECT createdAt, details, GROUP_CONCAT(productId) as productIds
+    FROM logs
+    WHERE actionType = 'PRINT'
+    GROUP BY createdAt, details
+    ORDER BY createdAt DESC
+    LIMIT 30
+  `;
+  db.all(query, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    const allIds = new Set();
+    rows.forEach(r => {
+      if (r.productIds) {
+        r.productIds.split(',').forEach(id => {
+          if (id) allIds.add(Number(id));
+        });
+      }
+    });
+    
+    if (allIds.size === 0) {
+      return res.json({ data: [] });
+    }
+    
+    const idList = Array.from(allIds);
+    const placeholders = idList.map(() => '?').join(',');
+    db.all(`SELECT * FROM products WHERE id IN (${placeholders})`, idList, (prodErr, products) => {
+      if (prodErr) return res.status(500).json({ error: prodErr.message });
+      
+      const productMap = {};
+      products.forEach(p => {
+        productMap[p.id] = p;
+      });
+      
+      const batches = rows.map(row => {
+        const ids = row.productIds ? row.productIds.split(',').map(Number) : [];
+        const batchProducts = ids.map(id => productMap[id]).filter(Boolean);
+        return {
+          createdAt: row.createdAt,
+          details: row.details,
+          products: batchProducts
+        };
+      }).filter(b => b.products.length > 0);
+      
+      res.json({ data: batches });
+    });
+  });
+});
+
+// 5.6. Hoàn tác in tem nhãn (Đưa các sản phẩm quay lại hàng chờ in)
+app.post('/api/inventory/revert-printed', (req, res) => {
+  const { ids } = req.body;
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'Cần cung cấp mảng ID sản phẩm.' });
+  }
+  const placeholders = ids.map(() => '?').join(',');
+  const query = `UPDATE products SET isPrinted = 0 WHERE id IN (${placeholders})`;
+  db.run(query, ids, function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    const now = new Date().toISOString();
+    db.all(`SELECT * FROM products WHERE id IN (${placeholders})`, ids, (selectErr, products) => {
+      if (!selectErr && products) {
+        db.serialize(() => {
+          const logStmt = db.prepare("INSERT INTO logs (actionType, productId, sku, location, shop, details, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)");
+          products.forEach(p => {
+            logStmt.run(['PRINT_REVERT', p.id, p.sku, p.location, p.shop, 'Đưa lại vào danh sách chờ in tem', now]);
+          });
+          logStmt.finalize();
+        });
+      }
+    });
+    
+    res.json({ message: 'Đã đưa sản phẩm quay lại hàng chờ in thành công.', updated: this.changes });
+  });
+});
+
 // 7. Lấy danh sách máy in trong hệ thống
 app.get('/api/printers', async (req, res) => {
   try {
