@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import './ImportPage.css';
 
 // Kệ A -> F, Ô 1 -> 6, Sub 1 -> 25
-const standardLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
+const standardLetters = ['A', 'B', 'C', 'D', 'E'];
 const standardNumbers = ['1', '2', '3', '4', '5', '6'];
 const standardSubs = Array.from({ length: 25 }, (_, i) => (i + 1).toString());
 
@@ -580,7 +580,7 @@ const ImportPage = () => {
               <div style={{ marginBottom: '20px' }}>
                 <label className="label">Kích cỡ (Size)</label>
                 <div className="button-selector-group">
-                  {['2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'].map(s => (
+                  {['2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL'].map(s => (
                     <button
                       key={s}
                       type="button"
