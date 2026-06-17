@@ -12,6 +12,7 @@ const Dashboard = () => {
   const [search, setSearch] = useState('');
   const [selectedArea, setSelectedArea] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedShop, setSelectedShop] = useState('ALL');
   const [viewMode, setViewMode] = useState('list');
   const [selectedCell, setSelectedCell] = useState(null); // { loc, products }
   const [showEmptyLocations, setShowEmptyLocations] = useState(false);
@@ -88,13 +89,40 @@ const Dashboard = () => {
     'E1', 'E2', 'E3', 'E4', 'E5', 'E6'
   ];
 
-  // Lấy danh sách các sản phẩm thuộc ô chứa loc (ví dụ 'A1')
+  // Lấy danh sách các sản phẩm thuộc ô chứa loc (ví dụ 'A1') và khớp bộ lọc (shop, status, search)
   const getProductsInLoc = (loc) => {
     return products.filter(p => {
       if (!p.location) return false;
       const cleanPLoc = p.location.trim().toUpperCase();
       const cleanLoc = loc.trim().toUpperCase();
-      return cleanPLoc === cleanLoc || cleanPLoc.startsWith(`${cleanLoc}-`);
+      const matchLoc = cleanPLoc === cleanLoc || cleanPLoc.startsWith(`${cleanLoc}-`);
+      if (!matchLoc) return false;
+
+      // Áp dụng bộ lọc Shop
+      if (selectedShop !== 'ALL') {
+        if (p.shop !== selectedShop) return false;
+      }
+
+      // Áp dụng bộ lọc Trạng thái
+      if (selectedStatus !== 'ALL') {
+        if (p.status !== selectedStatus) return false;
+      }
+
+      // Áp dụng bộ lọc Tìm kiếm
+      const query = search.trim().toLowerCase();
+      if (query) {
+        const combinedIdSku = `${p.id}#${p.sku}`.toLowerCase();
+        const matchQuery = (
+          p.sku?.toLowerCase().includes(query) ||
+          String(p.id) === query ||
+          combinedIdSku.includes(query) ||
+          p.shop?.toLowerCase().includes(query) ||
+          p.orderId?.toLowerCase().includes(query)
+        );
+        if (!matchQuery) return false;
+      }
+
+      return true;
     });
   };
 
@@ -139,21 +167,25 @@ const Dashboard = () => {
       if (!loc.startsWith(selectedArea)) return false;
     }
 
+    const cellProducts = products.filter(p => p.location && p.location.trim().toUpperCase() === loc);
+
+    // Lọc theo shop
+    if (selectedShop !== 'ALL') {
+      if (!cellProducts.some(p => p.shop === selectedShop)) return false;
+    }
+
     // Lọc theo trạng thái
     if (selectedStatus !== 'ALL') {
-      const cellProducts = products.filter(p => p.location && p.location.trim().toUpperCase() === loc);
       if (!cellProducts.some(p => p.status === selectedStatus)) return false;
     }
 
-    // 2. Lọc theo nội dung tìm kiếm
+    // Lọc theo nội dung tìm kiếm
     const query = search.trim().toLowerCase();
     if (!query) return true;
 
     // Nếu tên vị trí khớp trực tiếp với ô tìm kiếm
     if (loc.toLowerCase().includes(query)) return true;
 
-    // Tìm sản phẩm ở vị trí này để so khớp thông tin sản phẩm
-    const cellProducts = products.filter(p => p.location && p.location.trim().toUpperCase() === loc);
     return cellProducts.some(product => {
       const combinedIdSku = `${product.id}#${product.sku}`.toLowerCase();
       return (
@@ -173,32 +205,11 @@ const Dashboard = () => {
       if (!loc.startsWith(selectedArea)) return false;
     }
 
-    // Lọc theo trạng thái
-    const cellProducts = getProductsInLoc(loc);
-    if (selectedStatus !== 'ALL') {
-      if (!cellProducts.some(p => p.status === selectedStatus)) return false;
-    }
-
-    // 2. Lọc theo nội dung tìm kiếm
     const query = search.trim().toLowerCase();
-    if (!query) return true;
+    if (query && loc.toLowerCase().includes(query)) return true;
 
-    // Nếu tên ô chứa khớp trực tiếp
-    if (loc.toLowerCase().includes(query)) return true;
-
-    if (cellProducts.length === 0) return false;
-
-    return cellProducts.some(product => {
-      const combinedIdSku = `${product.id}#${product.sku}`.toLowerCase();
-      return (
-        product.sku?.toLowerCase().includes(query) ||
-        String(product.id) === query ||
-        combinedIdSku.includes(query) ||
-        product.shop?.toLowerCase().includes(query) ||
-        product.location?.toLowerCase().includes(query) ||
-        product.orderId?.toLowerCase().includes(query)
-      );
-    });
+    const cellProducts = getProductsInLoc(loc);
+    return cellProducts.length > 0;
   };
 
   // Danh sách các vị trí sau khi đã lọc qua search & selectedArea (Dùng cho view Bố cục List)
@@ -246,12 +257,17 @@ const Dashboard = () => {
       if (firstChar !== selectedArea) return false;
     }
 
-    // 2. Lọc theo trạng thái
+    // 2. Lọc theo cửa hàng (Shop)
+    if (selectedShop !== 'ALL') {
+      if (product.shop !== selectedShop) return false;
+    }
+
+    // 3. Lọc theo trạng thái
     if (selectedStatus !== 'ALL') {
       if (product.status !== selectedStatus) return false;
     }
 
-    // 3. Lọc theo nội dung tìm kiếm
+    // 4. Lọc theo nội dung tìm kiếm
     const query = search.trim().toLowerCase();
     if (!query) return true;
     
@@ -563,6 +579,26 @@ const Dashboard = () => {
           ))}
         </div>
       )}
+
+      {/* Bộ lọc cửa hàng (Shop) */}
+      <div className="area-filter-wrapper" style={{ marginBottom: '16px' }}>
+        <span className="area-filter-title">Cửa hàng:</span>
+        <button
+          onClick={() => setSelectedShop('ALL')}
+          className={`area-filter-button ${selectedShop === 'ALL' ? 'active' : ''}`}
+        >
+          Tất cả
+        </button>
+        {Array.from(new Set(products.map(p => p.shop).filter(Boolean))).sort().map(shop => (
+          <button
+            key={shop}
+            onClick={() => setSelectedShop(shop)}
+            className={`area-filter-button ${selectedShop === shop ? 'active' : ''}`}
+          >
+            {shop} ({products.filter(p => p.shop === shop).length})
+          </button>
+        ))}
+      </div>
 
       {/* Bộ lọc trạng thái (Sẵn có / Chờ lấy hàng) */}
       <div className="area-filter-wrapper" style={{ marginBottom: '24px' }}>

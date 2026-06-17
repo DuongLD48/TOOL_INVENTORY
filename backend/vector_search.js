@@ -294,7 +294,7 @@ async function indexProduct(db, id, imageUrl) {
 }
 
 // Tìm kiếm sản phẩm bằng ảnh truy vấn
-async function searchSimilarProducts(db, queryImageInput, topK = 5) {
+async function searchSimilarProducts(db, queryImageInput, topK = 5, shopFilter = null) {
   if (!isReady) {
     throw new Error('Hệ thống tìm kiếm hình ảnh chưa sẵn sàng (đang nạp model CLIP). Vui lòng thử lại sau ít phút.');
   }
@@ -304,7 +304,13 @@ async function searchSimilarProducts(db, queryImageInput, topK = 5) {
 
   // 2. Lấy tất cả sản phẩm đang tồn kho (IN_STOCK hoặc PENDING) có sẵn embedding từ SQLite
   const products = await new Promise((resolve, reject) => {
-    db.all("SELECT id, sku, location, shop, numberSku, productType, size, imageUrl, status, embedding FROM products WHERE (status = 'IN_STOCK' OR status = 'PENDING') AND embedding IS NOT NULL AND embedding != ''", [], (err, rows) => {
+    let sql = "SELECT id, sku, location, shop, numberSku, productType, size, imageUrl, status, embedding FROM products WHERE (status = 'IN_STOCK' OR status = 'PENDING') AND embedding IS NOT NULL AND embedding != ''";
+    const params = [];
+    if (shopFilter && shopFilter !== 'ALL') {
+      sql += " AND shop = ?";
+      params.push(shopFilter);
+    }
+    db.all(sql, params, (err, rows) => {
       if (err) reject(err);
       else resolve(rows);
     });

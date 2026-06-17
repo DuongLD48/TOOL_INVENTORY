@@ -705,8 +705,14 @@ const ImportPage = () => {
                   className="import-recent-card"
                   style={{ animationDelay: `${i === 0 ? 0 : 0}ms` }}
                 >
-                  <div className="import-recent-qr">
-                    <QRCodeSVG value={`${p.id}#${p.sku}`} size={40} />
+                  <div className="import-recent-image">
+                    {p.imageUrl ? (
+                      <img src={`http://${window.location.hostname}:3001${p.imageUrl}`} alt={p.sku} />
+                    ) : (
+                      <div className="import-recent-image-placeholder">
+                        {p.shop === 'SDR' ? '👕' : '📦'}
+                      </div>
+                    )}
                   </div>
                   <div className="import-recent-info">
                     <div className="import-recent-sku">{p.sku}</div>

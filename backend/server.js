@@ -202,13 +202,13 @@ app.get('/api/inventory', (req, res) => {
 
 // 1.5. Tìm kiếm sản phẩm tồn kho bằng hình ảnh (Vector similarity search)
 app.post('/api/inventory/search-image', async (req, res) => {
-  const { imageUrl } = req.body;
+  const { imageUrl, shop } = req.body;
   if (!imageUrl) {
     return res.status(400).json({ error: 'Vui lòng cung cấp hình ảnh thiết kế cần tìm.' });
   }
 
   try {
-    const results = await vectorSearch.searchSimilarProducts(db, imageUrl, 10);
+    const results = await vectorSearch.searchSimilarProducts(db, imageUrl, 10, shop);
     res.json({ data: results });
   } catch (error) {
     console.error('Lỗi khi tìm kiếm bằng ảnh:', error.message);
@@ -455,7 +455,7 @@ app.get('/api/inventory/exported', (req, res) => {
 
 // 4.5. Lấy danh sách toàn bộ thao tác (Audit Logs)
 app.get('/api/logs', (req, res) => {
-  db.all("SELECT * FROM logs ORDER BY createdAt DESC", [], (err, rows) => {
+  db.all("SELECT logs.*, products.imageUrl FROM logs LEFT JOIN products ON logs.productId = products.id ORDER BY logs.createdAt DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ data: rows });
   });

@@ -13,6 +13,10 @@ const ImageSearchPage = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [zoomedImage, setZoomedImage] = useState(null);
   
+  // State mới cho bộ lọc Shop
+  const [shops, setShops] = useState([]);
+  const [selectedShop, setSelectedShop] = useState('ALL');
+  
   const fileInputRef = useRef(null);
 
   const compressImage = (file, maxWidth = 800, maxHeight = 800) => {
@@ -83,7 +87,7 @@ const ImageSearchPage = () => {
       const res = await fetch(`http://${window.location.hostname}:3001/api/inventory/search-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: imageSrc })
+        body: JSON.stringify({ imageUrl: imageSrc, shop: selectedShop })
       });
       
       const data = await res.json();
@@ -98,7 +102,30 @@ const ImageSearchPage = () => {
     } finally {
       setLoading(false);
     }
+  }, [selectedShop]);
+
+  // Lấy danh sách shop từ API khi tải trang
+  useEffect(() => {
+    const fetchShops = async () => {
+      try {
+        const res = await fetch(`http://${window.location.hostname}:3001/api/shops`);
+        const data = await res.json();
+        if (data.data) {
+          setShops(data.data);
+        }
+      } catch (err) {
+        console.error('Lỗi lấy danh sách shop:', err);
+      }
+    };
+    fetchShops();
   }, []);
+
+  // Tự động tìm kiếm lại khi thay đổi bộ lọc shop
+  useEffect(() => {
+    if (queryImage) {
+      performSearch(queryImage);
+    }
+  }, [selectedShop, performSearch]);
 
   const handlePasteAndSearch = async () => {
     setError('');
@@ -386,6 +413,34 @@ const ImageSearchPage = () => {
             onChange={handleImageSelect} 
             style={{ display: 'none' }} 
           />
+        </div>
+
+        {/* Bộ lọc cửa hàng */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+            Lọc cửa hàng (Shop)
+          </label>
+          <select 
+            value={selectedShop} 
+            onChange={e => setSelectedShop(e.target.value)}
+            style={{
+              width: '100%',
+              height: '42px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: 'white',
+              padding: '0 12px',
+              outline: 'none',
+              fontFamily: 'inherit',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="ALL" style={{ background: '#1e293b', color: 'white' }}>Tất cả các shop</option>
+            {shops.map(shop => (
+              <option key={shop.id} value={shop.id} style={{ background: '#1e293b', color: 'white' }}>{shop.name}</option>
+            ))}
+          </select>
         </div>
 
         {error && (

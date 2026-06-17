@@ -190,9 +190,21 @@ const HistoryPage = () => {
                 
                 return (
                   <div key={log.id} className="glass-panel history-log-row-card">
-                    {/* Icon loại Action */}
-                    <div className={`action-icon-badge ${config.className}`} title={config.label}>
-                      {config.icon}
+                    {/* Icon loại Action hoặc hình ảnh sản phẩm cho IMPORT */}
+                    <div 
+                      className={`action-icon-badge ${config.className}`} 
+                      title={config.label}
+                      style={log.actionType === 'IMPORT' && log.imageUrl ? { padding: 0, overflow: 'hidden', background: 'transparent', border: '1px solid rgba(255, 255, 255, 0.1)' } : {}}
+                    >
+                      {log.actionType === 'IMPORT' && log.imageUrl ? (
+                        <img 
+                          src={`http://${window.location.hostname}:3001${log.imageUrl}`} 
+                          alt={log.sku} 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                        />
+                      ) : (
+                        config.icon
+                      )}
                     </div>
 
                     {/* Shop + SKU + ID */}
