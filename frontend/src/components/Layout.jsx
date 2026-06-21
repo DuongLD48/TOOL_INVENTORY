@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Smartphone, Briefcase, Wrench } from 'lucide-react';
+import { LayoutDashboard, Smartphone, Briefcase, Wrench, Activity } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import './Layout.css';
 
@@ -56,6 +56,14 @@ const Layout = () => {
         >
           <Wrench size={20} />
           <span>Tiện ích</span>
+        </NavLink>
+
+        <NavLink 
+          to="/monitor" 
+          className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}
+        >
+          <Activity size={20} />
+          <span>Giám sát in</span>
         </NavLink>
         
         <div className="qr-container sidebar-qr-box">

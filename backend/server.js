@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -11,9 +12,24 @@ const path = require('path');
 const QRCode = require('qrcode');
 const PDFDocument = require('pdfkit');
 const { print, getPrinters } = require('pdf-to-printer');
+const bwipjs = require('bwip-js');
 
-// Tên máy in — có thể đổi ở đây nếu cần
-const PRINTER_NAME = 'Xprinter XP-470B';
+// Tên máy in — có thể cấu hình qua .env hoặc dùng mặc định
+let PRINTER_NAME = process.env.SKU_PRINTER_NAME || 'Xprinter XP-470B';
+let ORDER_PRINTER_NAME = process.env.ORDER_PRINTER_NAME || 'Xprinter XP-470B';
+
+const configPath = path.join(__dirname, 'printer_config.json');
+if (fs.existsSync(configPath)) {
+  try {
+    const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    if (savedConfig.skuPrinter) PRINTER_NAME = savedConfig.skuPrinter;
+    if (savedConfig.orderPrinter) ORDER_PRINTER_NAME = savedConfig.orderPrinter;
+    console.log(`[Printer Config] Đã tải từ file: SKU=${PRINTER_NAME}, ORDER=${ORDER_PRINTER_NAME}`);
+  } catch (e) {
+    console.error('[Printer Config] Lỗi đọc file cấu hình, sử dụng mặc định:', e.message);
+  }
+}
+
 // Thư mục tạm để lưu PDF trước khi in
 const TEMP_DIR = path.join(__dirname, 'temp_print');
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
@@ -1069,14 +1085,196 @@ app.post('/api/inventory/update-image', (req, res) => {
   });
 });
 
+// --- APIS CẤU HÌNH MÁY IN ---
+// Lấy cấu hình máy in hiện tại
+app.get('/api/settings/printer', (req, res) => {
+  res.json({
+    skuPrinter: PRINTER_NAME,
+    orderPrinter: ORDER_PRINTER_NAME
+  });
+});
+
+// Lưu cấu hình máy in mới
+app.post('/api/settings/printer', (req, res) => {
+  const { skuPrinter, orderPrinter } = req.body;
+  
+  if (skuPrinter) PRINTER_NAME = skuPrinter;
+  if (orderPrinter) ORDER_PRINTER_NAME = orderPrinter;
+  
+  try {
+    fs.writeFileSync(configPath, JSON.stringify({ skuPrinter: PRINTER_NAME, orderPrinter: ORDER_PRINTER_NAME }, null, 2));
+    
+    // Phát tin báo cấu hình máy in thay đổi
+    io.emit('printer_settings_updated', { skuPrinter: PRINTER_NAME, orderPrinter: ORDER_PRINTER_NAME });
+    
+    console.log(`[Printer Config] Đã cập nhật cấu hình: SKU=${PRINTER_NAME}, ORDER=${ORDER_PRINTER_NAME}`);
+    res.json({ success: true, message: 'Đã lưu cấu hình máy in thành công.', skuPrinter: PRINTER_NAME, orderPrinter: ORDER_PRINTER_NAME });
+  } catch (err) {
+    res.status(500).json({ error: `Lỗi lưu file cấu hình: ${err.message}` });
+  }
+});
+
 // --- SOCKET.IO ---
 io.on('connection', (socket) => {
   console.log('Có client kết nối:', socket.id);
+  
+  // Gửi cấu hình máy in và trạng thái Firebase cho client kết nối
+  const firebaseListener = require('./firebaseListener');
+  socket.emit('firebase_status', firebaseListener.getStatus());
+  socket.emit('printer_settings_updated', { skuPrinter: PRINTER_NAME, orderPrinter: ORDER_PRINTER_NAME });
   
   socket.on('disconnect', () => {
     console.log('Client ngắt kết nối:', socket.id);
   });
 });
+
+// --- LOGIC IN ĐƠN TỰ ĐỘNG QUA FIREBASE ---
+const printOrderLabels = async (orders) => {
+  if (!orders || !Array.isArray(orders) || orders.length === 0) return;
+  
+  console.log(`[Printer] Bắt đầu xử lý in ${orders.length} nhãn đơn hàng...`);
+  
+  try {
+    const MM = 2.8346;
+    const PAGE_W = 100 * MM;
+    const PAGE_H = 150 * MM;
+    const PAD = 8 * MM;
+    
+    const pdfPath = path.join(TEMP_DIR, `orders_${Date.now()}.pdf`);
+    const doc = new PDFDocument({ size: [PAGE_W, PAGE_H], margin: 0, autoFirstPage: false });
+    const writeStream = fs.createWriteStream(pdfPath);
+    doc.pipe(writeStream);
+    
+    for (const order of orders) {
+      doc.addPage();
+      
+      // 1. Vẽ Ngày tháng ở góc trên bên phải
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+        .text(order.date || '', PAGE_W - PAD - 100, PAD, { width: 100, align: 'right' });
+        
+      // 2. Vẽ Barcode của trackingId (dùng bwip-js)
+      try {
+        const barcodeBuffer = await bwipjs.toBuffer({
+          bcid: 'code128',
+          text: order.trackingId || 'N/A',
+          scale: 3,
+          height: 10,
+          includetext: false
+        });
+        doc.image(barcodeBuffer, PAD, PAD + 5 * MM, { width: 48 * MM, height: 12 * MM });
+      } catch (barErr) {
+        console.error(`[Printer] Không thể tạo barcode cho trackingId: ${order.trackingId}`, barErr.message);
+      }
+      
+      // 3. Vẽ QR Code của trackingId
+      try {
+        const qrBuffer = await QRCode.toBuffer(order.trackingId || 'N/A', {
+          type: 'png',
+          width: 150,
+          margin: 0,
+          color: { dark: '#000000', light: '#FFFFFF' }
+        });
+        doc.image(qrBuffer, PAGE_W - PAD - 15 * MM, PAD + 5 * MM, { width: 15 * MM, height: 15 * MM });
+      } catch (qrErr) {
+        console.error(`[Printer] Không thể tạo QR code cho trackingId: ${order.trackingId}`, qrErr.message);
+      }
+      
+      // 4. Vẽ chữ Tracking
+      doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+        .text(`Tracking: ${order.trackingId || ''}`, PAD, PAD + 20 * MM, { width: PAGE_W - (PAD * 2) });
+        
+      // 5. Vẽ chữ Order ID
+      if (order.orderId) {
+        doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+          .text(`Order ID: ${order.orderId}`, PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
+      }
+      
+      // 6. Vẽ khung hộp sản phẩm
+      const boxX = PAD;
+      const boxY = PAD + 31 * MM;
+      const boxW = PAGE_W - (PAD * 2);
+      const boxH = PAGE_H - boxY - PAD;
+      
+      // Vẽ viền hộp (đường đứt nét giống dashed border)
+      doc.rect(boxX, boxY, boxW, boxH).dash(4, { space: 4 }).stroke();
+      doc.undash(); // Khôi phục nét liền cho các thành phần khác
+      
+      // Tiêu đề khung
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+        .text('PRODUCT', boxX + 4 * MM, boxY + 4 * MM);
+        
+      // Nội dung danh sách sản phẩm
+      let currentY = boxY + 10 * MM;
+      if (Array.isArray(order.productItems) && order.productItems.length > 0) {
+        for (const item of order.productItems) {
+          const nameText = item.name || '';
+          const qtyText = item.quantity > 1 ? `x${item.quantity}` : '';
+          
+          // Vẽ tên sản phẩm (căn trái)
+          doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+            .text(nameText, boxX + 4 * MM, currentY, { width: boxW - 14 * MM });
+            
+          // Vẽ số lượng sản phẩm (căn phải)
+          if (qtyText) {
+            doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+              .text(qtyText, boxX + boxW - 10 * MM, currentY, { width: 6 * MM, align: 'right' });
+          }
+          
+          currentY += 7 * MM; // Khoảng cách dòng
+        }
+      } else {
+        // Fallback nếu không có productItems
+        doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+          .text(order.product || '', boxX + 4 * MM, boxY + 10 * MM, { width: boxW - 8 * MM });
+      }
+    }
+    doc.end();
+    
+    writeStream.on('finish', async () => {
+      try {
+        console.log(`[Printer] Đang gửi lệnh in ${orders.length} nhãn tới máy in: ${ORDER_PRINTER_NAME}...`);
+        await print(pdfPath, {
+          printer: ORDER_PRINTER_NAME,
+          silent: true,
+          scale: 'noscale',
+          orientation: 'portrait' // Đơn hàng in dọc 100x150
+        });
+        console.log(`[Printer] Đã gửi lệnh in thành công.`);
+        
+        // Ghi nhật ký vào SQLite & Phát tin in ấn realtime cho các Frontend đang mở tab Giám sát
+        db.serialize(() => {
+          const logStmt = db.prepare("INSERT INTO logs (actionType, shop, details, createdAt) VALUES (?, ?, ?, ?)");
+          const printTime = new Date().toISOString();
+          
+          orders.forEach(order => {
+            logStmt.run(['ORDER_PRINT', order.importSheetType || 'N/A', `In tự động đơn hàng #${order.orderId} (Tracking: ${order.trackingId})`, printTime]);
+            
+            // Bắn tin socket để frontend cập nhật màn hình Console giám sát in lập tức
+            io.emit('order_printed', {
+              timestamp: Date.now(),
+              orderId: order.orderId,
+              trackingId: order.trackingId,
+              shop: order.importSheetType || 'N/A',
+              details: `Đã in tự động đơn hàng #${order.orderId}`
+            });
+          });
+          logStmt.finalize();
+        });
+        
+        // Xoá file tạm sau 10 giây
+        setTimeout(() => { try { fs.unlinkSync(pdfPath); } catch(_) {} }, 10000);
+      } catch (printErr) {
+        console.error(`[Printer] Lỗi máy in khi in đơn hàng:`, printErr.message);
+      }
+    });
+    
+    writeStream.on('error', (e) => {
+      console.error(`[Printer] Lỗi ghi file PDF đơn hàng:`, e.message);
+    });
+  } catch (e) {
+    console.error(`[Printer] Lỗi xử lý tạo PDF đơn hàng:`, e.message);
+  }
+};
 
 // --- START SERVER ---
 const PORT = process.env.PORT || 3001;
@@ -1084,4 +1282,13 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server Backend (API & Realtime) đang chạy tại http://localhost:${PORT}`);
   // Khởi tạo vector search model và chạy tự động indexing
   vectorSearch.init(db);
+  
+  // Khởi chạy bộ lắng nghe in đơn tự động qua Firebase
+  const firebaseListener = require('./firebaseListener');
+  firebaseListener.init(printOrderLabels);
+  
+  // Phát tin trạng thái Firebase thay đổi tới toàn bộ client
+  firebaseListener.onStatusChange((status, message) => {
+    io.emit('firebase_status', { status, message });
+  });
 });

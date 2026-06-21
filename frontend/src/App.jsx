@@ -10,6 +10,7 @@ import BatchPrintPage from './pages/BatchPrintPage';
 import HistoryPage from './pages/HistoryPage';
 import OrderMatchingPage from './pages/OrderMatchingPage';
 import ImageSearchPage from './pages/ImageSearchPage';
+import PrintMonitorPage from './pages/PrintMonitorPage';
 import { SocketProvider } from './context/SocketContext';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
+            <Route path="monitor" element={<PrintMonitorPage />} />
             
             {/* Giao dịch / Nghiệp vụ */}
             <Route path="operations" element={<OperationsLayout />}>

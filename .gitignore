@@ -16,3 +16,6 @@ backend/models/
 backend/.cache/
 backend/.active_model
 backend/sdr_images/
+backend/serviceAccountKey.json
+backend/printer_config.json
+TOOL_INVENTORY/

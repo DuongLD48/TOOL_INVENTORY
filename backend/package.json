@@ -16,6 +16,8 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "firebase-admin": "^12.0.0",
+    "bwip-js": "^4.5.0",
     "jimp": "^1.6.1",
     "localtunnel": "^2.0.2",
     "pdf-to-printer": "^5.8.0",
