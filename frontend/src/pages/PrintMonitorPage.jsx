@@ -7,8 +7,10 @@ const PrintMonitorPage = () => {
   const socket = useSocket();
   const [firebaseStatus, setFirebaseStatus] = useState({ status: 'NOT_CONFIGURED', message: 'Đang kết nối...' });
   const [printers, setPrinters] = useState([]);
-  const [selectedSkuPrinter, setSelectedSkuPrinter] = useState('');
-  const [selectedOrderPrinter, setSelectedOrderPrinter] = useState('');
+  const [selectedPrinter, setSelectedPrinter] = useState('');
+  const [pageWidth, setPageWidth] = useState(100);
+  const [pageHeight, setPageHeight] = useState(150);
+  const [orientation, setOrientation] = useState('portrait');
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
   const [settingsError, setSettingsError] = useState(null);
@@ -49,8 +51,10 @@ const PrintMonitorPage = () => {
       const res = await fetch(`http://${window.location.hostname}:3001/api/settings/printer`);
       const data = await res.json();
       if (data) {
-        setSelectedSkuPrinter(data.skuPrinter || '');
-        setSelectedOrderPrinter(data.orderPrinter || '');
+        setSelectedPrinter(data.printerName || '');
+        setPageWidth(data.pageWidth || 100);
+        setPageHeight(data.pageHeight || 150);
+        setOrientation(data.orientation || 'portrait');
       }
     } catch (err) {
       console.error('Lỗi lấy cấu hình máy in:', err);
@@ -85,14 +89,16 @@ const PrintMonitorPage = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          skuPrinter: selectedSkuPrinter,
-          orderPrinter: selectedOrderPrinter
+          printerName: selectedPrinter,
+          pageWidth: Number(pageWidth),
+          pageHeight: Number(pageHeight),
+          orientation: orientation
         })
       });
       const data = await res.json();
       if (data.success) {
         setSettingsSuccess(true);
-        addConsoleLog(`⚙️ Đã lưu cấu hình máy in: SKU="${selectedSkuPrinter}", ĐƠN HÀNG="${selectedOrderPrinter}"`, 'system');
+        addConsoleLog(`⚙️ Đã lưu cấu hình máy in: ${data.printerName} (${data.pageWidth}x${data.pageHeight}mm, ${data.orientation})`, 'system');
         setTimeout(() => setSettingsSuccess(false), 3000);
       } else {
         setSettingsError('Lưu cấu hình thất bại.');
@@ -133,9 +139,11 @@ const PrintMonitorPage = () => {
 
     socket.on('printer_settings_updated', (settings) => {
       if (settings) {
-        setSelectedSkuPrinter(settings.skuPrinter || '');
-        setSelectedOrderPrinter(settings.orderPrinter || '');
-        addConsoleLog(`⚙️ Cấu hình máy in được đồng bộ từ server: SKU="${settings.skuPrinter}", ĐƠN HÀNG="${settings.orderPrinter}"`, 'system');
+        setSelectedPrinter(settings.printerName || '');
+        setPageWidth(settings.pageWidth || 100);
+        setPageHeight(settings.pageHeight || 150);
+        setOrientation(settings.orientation || 'portrait');
+        addConsoleLog(`⚙️ Cấu hình máy in được đồng bộ từ server: ${settings.printerName} (${settings.pageWidth}x${settings.pageHeight}mm, ${settings.orientation})`, 'system');
       }
     });
 
@@ -211,30 +219,54 @@ const PrintMonitorPage = () => {
         <div className="glass-panel printer-settings-card">
           <div className="card-header">
             <h3><Printer size={18} /> Cấu hình máy in trên Server</h3>
-            <span className="card-header-desc">Thiết lập máy in mặc định cho in đơn hàng và in tem SKU chạy ngầm.</span>
+            <span className="card-header-desc">Thiết lập máy in duy nhất và kích thước khổ giấy in cho server local.</span>
           </div>
           <div className="card-body">
             <div className="input-group">
-              <label>Máy in Đơn hàng (Khổ 100x150mm):</label>
+              <label>Chọn máy in hệ thống:</label>
               <select 
-                value={selectedOrderPrinter} 
-                onChange={(e) => setSelectedOrderPrinter(e.target.value)}
+                value={selectedPrinter} 
+                onChange={(e) => setSelectedPrinter(e.target.value)}
                 disabled={savingSettings}
               >
-                <option value="">-- Chọn máy in đơn hàng --</option>
-                {printers.map(p => <option key={`order-${p}`} value={p}>{p}</option>)}
+                <option value="">-- Chọn máy in --</option>
+                {printers.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
 
+            <div className="settings-row">
+              <div className="input-group">
+                <label>Khổ ngang (Width mm):</label>
+                <input 
+                  type="number" 
+                  value={pageWidth} 
+                  onChange={(e) => setPageWidth(Number(e.target.value))}
+                  disabled={savingSettings}
+                  min="1"
+                />
+              </div>
+
+              <div className="input-group">
+                <label>Khổ dọc (Height mm):</label>
+                <input 
+                  type="number" 
+                  value={pageHeight} 
+                  onChange={(e) => setPageHeight(Number(e.target.value))}
+                  disabled={savingSettings}
+                  min="1"
+                />
+              </div>
+            </div>
+
             <div className="input-group">
-              <label>Máy in Tem SKU (Khổ 100x22mm):</label>
+              <label>Chiều in (Orientation):</label>
               <select 
-                value={selectedSkuPrinter} 
-                onChange={(e) => setSelectedSkuPrinter(e.target.value)}
+                value={orientation} 
+                onChange={(e) => setOrientation(e.target.value)}
                 disabled={savingSettings}
               >
-                <option value="">-- Chọn máy in tem SKU --</option>
-                {printers.map(p => <option key={`sku-${p}`} value={p}>{p}</option>)}
+                <option value="portrait">Dọc (Portrait)</option>
+                <option value="landscape">Ngang (Landscape)</option>
               </select>
             </div>
 
@@ -245,7 +277,7 @@ const PrintMonitorPage = () => {
                 disabled={savingSettings}
               >
                 {savingSettings ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}
-                <span>{savingSettings ? 'Đang lưu...' : 'Lưu máy in'}</span>
+                <span>{savingSettings ? 'Đang lưu...' : 'Lưu cài đặt'}</span>
               </button>
               {settingsSuccess && <span className="text-success settings-feedback">✓ Đã cập nhật trên server!</span>}
               {settingsError && <span className="text-danger settings-feedback">✗ {settingsError}</span>}

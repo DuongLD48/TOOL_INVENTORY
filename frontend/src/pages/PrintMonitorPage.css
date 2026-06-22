@@ -177,7 +177,8 @@
   font-weight: 500;
 }
 
-.input-group select {
+.input-group select,
+.input-group input {
   width: 100%;
   background: rgba(17, 24, 39, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -186,12 +187,25 @@
   color: #f3f4f6;
   font-size: 0.9rem;
   outline: none;
-  cursor: pointer;
   transition: border-color 0.2s ease;
 }
 
-.input-group select:focus {
+.input-group select {
+  cursor: pointer;
+}
+
+.input-group select:focus,
+.input-group input:focus {
   border-color: #3b82f6;
+}
+
+.settings-row {
+  display: flex;
+  gap: 12px;
+}
+
+.settings-row .input-group {
+  flex: 1;
 }
 
 .settings-actions {

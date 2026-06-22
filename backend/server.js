@@ -14,17 +14,23 @@ const PDFDocument = require('pdfkit');
 const { print, getPrinters } = require('pdf-to-printer');
 const bwipjs = require('bwip-js');
 
-// Tên máy in — có thể cấu hình qua .env hoặc dùng mặc định
-let PRINTER_NAME = process.env.SKU_PRINTER_NAME || 'Xprinter XP-470B';
-let ORDER_PRINTER_NAME = process.env.ORDER_PRINTER_NAME || 'Xprinter XP-470B';
+// Cấu hình máy in duy nhất trên Server Local
+let PRINTER_CONFIG = {
+  printerName: process.env.PRINTER_NAME || 'Xprinter XP-470B',
+  pageWidth: Number(process.env.PAGE_WIDTH) || 100,
+  pageHeight: Number(process.env.PAGE_HEIGHT) || 150,
+  orientation: process.env.ORIENTATION || 'portrait'
+};
 
 const configPath = path.join(__dirname, 'printer_config.json');
 if (fs.existsSync(configPath)) {
   try {
     const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    if (savedConfig.skuPrinter) PRINTER_NAME = savedConfig.skuPrinter;
-    if (savedConfig.orderPrinter) ORDER_PRINTER_NAME = savedConfig.orderPrinter;
-    console.log(`[Printer Config] Đã tải từ file: SKU=${PRINTER_NAME}, ORDER=${ORDER_PRINTER_NAME}`);
+    if (savedConfig.printerName) PRINTER_CONFIG.printerName = savedConfig.printerName;
+    if (savedConfig.pageWidth) PRINTER_CONFIG.pageWidth = Number(savedConfig.pageWidth) || 100;
+    if (savedConfig.pageHeight) PRINTER_CONFIG.pageHeight = Number(savedConfig.pageHeight) || 150;
+    if (savedConfig.orientation) PRINTER_CONFIG.orientation = savedConfig.orientation;
+    console.log(`[Printer Config] Đã tải cấu hình máy in:`, PRINTER_CONFIG);
   } catch (e) {
     console.error('[Printer Config] Lỗi đọc file cấu hình, sử dụng mặc định:', e.message);
   }
@@ -597,7 +603,7 @@ app.post('/api/inventory/revert-printed', (req, res) => {
 app.get('/api/printers', async (req, res) => {
   try {
     const printers = await getPrinters();
-    res.json({ data: printers, current: PRINTER_NAME });
+    res.json({ data: printers, current: PRINTER_CONFIG.printerName });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -614,10 +620,10 @@ app.post('/api/inventory/print-test', async (req, res) => {
   ];
 
   try {
-    const targetPrinter = printerName || PRINTER_NAME;
-    const targetWidth = pageWidth ? Number(pageWidth) : 100;
-    const targetHeight = pageHeight ? Number(pageHeight) : 22;
-    const targetOrientation = orientation || 'landscape';
+    const targetPrinter = printerName || PRINTER_CONFIG.printerName;
+    const targetWidth = pageWidth ? Number(pageWidth) : PRINTER_CONFIG.pageWidth;
+    const targetHeight = pageHeight ? Number(pageHeight) : PRINTER_CONFIG.pageHeight;
+    const targetOrientation = orientation || PRINTER_CONFIG.orientation;
 
     const MM = 2.8346;
     const PAGE_W = targetWidth * MM;
@@ -707,10 +713,10 @@ app.post('/api/inventory/print-now', async (req, res) => {
 
     try {
       // Cấu hình từ client hoặc dùng mặc định
-      const targetPrinter = printerName || PRINTER_NAME;
-      const targetWidth = pageWidth ? Number(pageWidth) : 100;
-      const targetHeight = pageHeight ? Number(pageHeight) : 22;
-      const targetOrientation = orientation || 'landscape';
+      const targetPrinter = printerName || PRINTER_CONFIG.printerName;
+      const targetWidth = pageWidth ? Number(pageWidth) : PRINTER_CONFIG.pageWidth;
+      const targetHeight = pageHeight ? Number(pageHeight) : PRINTER_CONFIG.pageHeight;
+      const targetOrientation = orientation || PRINTER_CONFIG.orientation;
 
       const MM = 2.8346;
       const PAGE_W = targetWidth * MM;  
@@ -830,9 +836,9 @@ app.post('/api/inventory/generate-pdf', async (req, res) => {
     if (!products.length) return res.status(404).json({ error: 'Không tìm thấy sản phẩm.' });
 
     try {
-      const targetWidth = pageWidth ? Number(pageWidth) : 100;
-      const targetHeight = pageHeight ? Number(pageHeight) : 22;
-      const targetOrientation = orientation || 'landscape';
+      const targetWidth = pageWidth ? Number(pageWidth) : PRINTER_CONFIG.pageWidth;
+      const targetHeight = pageHeight ? Number(pageHeight) : PRINTER_CONFIG.pageHeight;
+      const targetOrientation = orientation || PRINTER_CONFIG.orientation;
 
       const MM = 2.8346;
       const PAGE_W = targetWidth * MM;  
@@ -1089,26 +1095,30 @@ app.post('/api/inventory/update-image', (req, res) => {
 // Lấy cấu hình máy in hiện tại
 app.get('/api/settings/printer', (req, res) => {
   res.json({
-    skuPrinter: PRINTER_NAME,
-    orderPrinter: ORDER_PRINTER_NAME
+    printerName: PRINTER_CONFIG.printerName,
+    pageWidth: PRINTER_CONFIG.pageWidth,
+    pageHeight: PRINTER_CONFIG.pageHeight,
+    orientation: PRINTER_CONFIG.orientation
   });
 });
 
 // Lưu cấu hình máy in mới
 app.post('/api/settings/printer', (req, res) => {
-  const { skuPrinter, orderPrinter } = req.body;
+  const { printerName, pageWidth, pageHeight, orientation } = req.body;
   
-  if (skuPrinter) PRINTER_NAME = skuPrinter;
-  if (orderPrinter) ORDER_PRINTER_NAME = orderPrinter;
+  if (printerName !== undefined) PRINTER_CONFIG.printerName = printerName;
+  if (pageWidth !== undefined) PRINTER_CONFIG.pageWidth = Number(pageWidth);
+  if (pageHeight !== undefined) PRINTER_CONFIG.pageHeight = Number(pageHeight);
+  if (orientation !== undefined) PRINTER_CONFIG.orientation = orientation;
   
   try {
-    fs.writeFileSync(configPath, JSON.stringify({ skuPrinter: PRINTER_NAME, orderPrinter: ORDER_PRINTER_NAME }, null, 2));
+    fs.writeFileSync(configPath, JSON.stringify(PRINTER_CONFIG, null, 2));
     
     // Phát tin báo cấu hình máy in thay đổi
-    io.emit('printer_settings_updated', { skuPrinter: PRINTER_NAME, orderPrinter: ORDER_PRINTER_NAME });
+    io.emit('printer_settings_updated', PRINTER_CONFIG);
     
-    console.log(`[Printer Config] Đã cập nhật cấu hình: SKU=${PRINTER_NAME}, ORDER=${ORDER_PRINTER_NAME}`);
-    res.json({ success: true, message: 'Đã lưu cấu hình máy in thành công.', skuPrinter: PRINTER_NAME, orderPrinter: ORDER_PRINTER_NAME });
+    console.log(`[Printer Config] Đã cập nhật cấu hình:`, PRINTER_CONFIG);
+    res.json({ success: true, message: 'Đã lưu cấu hình máy in thành công.', ...PRINTER_CONFIG });
   } catch (err) {
     res.status(500).json({ error: `Lỗi lưu file cấu hình: ${err.message}` });
   }
@@ -1121,7 +1131,7 @@ io.on('connection', (socket) => {
   // Gửi cấu hình máy in và trạng thái Firebase cho client kết nối
   const firebaseListener = require('./firebaseListener');
   socket.emit('firebase_status', firebaseListener.getStatus());
-  socket.emit('printer_settings_updated', { skuPrinter: PRINTER_NAME, orderPrinter: ORDER_PRINTER_NAME });
+  socket.emit('printer_settings_updated', PRINTER_CONFIG);
   
   socket.on('disconnect', () => {
     console.log('Client ngắt kết nối:', socket.id);
@@ -1136,8 +1146,8 @@ const printOrderLabels = async (orders) => {
   
   try {
     const MM = 2.8346;
-    const PAGE_W = 100 * MM;
-    const PAGE_H = 150 * MM;
+    const PAGE_W = (Number(PRINTER_CONFIG.pageWidth) || 100) * MM;
+    const PAGE_H = (Number(PRINTER_CONFIG.pageHeight) || 150) * MM;
     const PAD = 8 * MM;
     
     const pdfPath = path.join(TEMP_DIR, `orders_${Date.now()}.pdf`);
@@ -1232,12 +1242,12 @@ const printOrderLabels = async (orders) => {
     
     writeStream.on('finish', async () => {
       try {
-        console.log(`[Printer] Đang gửi lệnh in ${orders.length} nhãn tới máy in: ${ORDER_PRINTER_NAME}...`);
+        console.log(`[Printer] Đang gửi lệnh in ${orders.length} nhãn tới máy in: ${PRINTER_CONFIG.printerName}...`);
         await print(pdfPath, {
-          printer: ORDER_PRINTER_NAME,
+          printer: PRINTER_CONFIG.printerName,
           silent: true,
           scale: 'noscale',
-          orientation: 'portrait' // Đơn hàng in dọc 100x150
+          orientation: PRINTER_CONFIG.orientation || 'portrait'
         });
         console.log(`[Printer] Đã gửi lệnh in thành công.`);
         
