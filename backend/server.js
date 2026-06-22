@@ -688,7 +688,7 @@ app.post('/api/inventory/print-test', async (req, res) => {
           const printOptions = {
             printer: targetPrinter,
             silent: true,
-            scale: 'noscale', // In 1:1 đúng kích thước PDF — driver máy in đã biết khổ 100x150mm
+            scale: 'fit', // Khớp với cách trình duyệt in (Fit to Page), driver tự xác định khổ giấy
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
@@ -746,20 +746,27 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
     const writeStream = fs.createWriteStream(pdfPath);
     doc.pipe(writeStream);
 
-    // Đăng ký font Arial nếu có trên Windows để hiển thị được tiếng Việt có dấu
-    const hasArial = fs.existsSync('C:\\Windows\\Fonts\\arial.ttf') && fs.existsSync('C:\\Windows\\Fonts\\arialbd.ttf');
-    if (hasArial) {
-      doc.registerFont('Arial', 'C:\\Windows\\Fonts\\arial.ttf');
-      doc.registerFont('Arial-Bold', 'C:\\Windows\\Fonts\\arialbd.ttf');
+    // Ưu tiên Segoe UI (hỗ trợ Unicode/Vietnamese tốt nhất trên Windows), fallback về Arial, rồi Helvetica
+    const hasSegoe = fs.existsSync('C:\\Windows\\Fonts\\segoeui.ttf') && fs.existsSync('C:\\Windows\\Fonts\\seguisb.ttf');
+    const hasArial = !hasSegoe && fs.existsSync('C:\\Windows\\Fonts\\arial.ttf') && fs.existsSync('C:\\Windows\\Fonts\\arialbd.ttf');
+    if (hasSegoe) {
+      doc.registerFont('VNRegular', 'C:\\Windows\\Fonts\\segoeui.ttf');
+      doc.registerFont('VNBold', 'C:\\Windows\\Fonts\\seguisb.ttf');
+    } else if (hasArial) {
+      doc.registerFont('VNRegular', 'C:\\Windows\\Fonts\\arial.ttf');
+      doc.registerFont('VNBold', 'C:\\Windows\\Fonts\\arialbd.ttf');
     }
-    const fontRegular = hasArial ? 'Arial' : 'Helvetica';
-    const fontBold = hasArial ? 'Arial-Bold' : 'Helvetica-Bold';
+    const fontRegular = (hasSegoe || hasArial) ? 'VNRegular' : 'Helvetica';
+    const fontBold = (hasSegoe || hasArial) ? 'VNBold' : 'Helvetica-Bold';
+    // Chuẩn hoá NFC — tránh PDFKit decompose tiếng Việt thành base + dấu riêng
+    const nfc = (s) => (s || '').normalize('NFC');
+    console.log(`[Printer] Font sử dụng: ${fontBold} (Segoe=${hasSegoe}, Arial=${hasArial})`);
 
     doc.addPage();
 
     // 1. Vẽ Ngày tháng ở góc trên bên phải
     doc.font(fontBold).fontSize(10).fillColor('black')
-      .text(testOrder.date || '', PAGE_W - PAD - 100, PAD, { width: 100, align: 'right' });
+      .text(nfc(testOrder.date || ''), PAGE_W - PAD - 100, PAD, { width: 100, align: 'right' });
       
     // 2. Vẽ Barcode của trackingId
     try {
@@ -775,26 +782,28 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
       console.error(`[Printer] Không thể tạo barcode cho trackingId: ${testOrder.trackingId}`, barErr.message);
     }
     
-    // 3. Vẽ QR Code của trackingId
+    // 3. Vẽ QR Code của trackingId — đặt cách lề phải đủ để không bị cắt
     try {
+      const qrSize = 18 * MM;
       const qrBuffer = await QRCode.toBuffer(testOrder.trackingId || 'N/A', {
         type: 'png',
         width: 150,
         margin: 0,
         color: { dark: '#000000', light: '#FFFFFF' }
       });
-      doc.image(qrBuffer, PAGE_W - PAD - 18 * MM, PAD + 4 * MM, { width: 18 * MM, height: 18 * MM });
+      const qrX = PAGE_W - PAD - qrSize; // cách lề phải đúng PAD
+      doc.image(qrBuffer, qrX, PAD + 4 * MM, { width: qrSize, height: qrSize });
     } catch (qrErr) {
       console.error(`[Printer] Không thể tạo QR code cho trackingId: ${testOrder.trackingId}`, qrErr.message);
     }
     
     // 4. Vẽ chữ Tracking
     doc.font(fontBold).fontSize(11).fillColor('black')
-      .text(`Tracking: ${testOrder.trackingId || ''}`, PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
+      .text(nfc(`Tracking: ${testOrder.trackingId || ''}`), PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
       
     // 5. Vẽ chữ Order ID
     doc.font(fontBold).fontSize(10).fillColor('black')
-      .text(`Order ID: ${testOrder.orderId}`, PAD, PAD + 31 * MM, { width: PAGE_W - (PAD * 2) });
+      .text(nfc(`Order ID: ${testOrder.orderId}`), PAD, PAD + 31 * MM, { width: PAGE_W - (PAD * 2) });
     
     // 6. Vẽ khung hộp sản phẩm
     const boxX = PAD;
@@ -811,7 +820,7 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
     let currentY = boxY + 10 * MM;
     if (Array.isArray(testOrder.productItems) && testOrder.productItems.length > 0) {
       for (const item of testOrder.productItems) {
-        const nameText = item.name || '';
+        const nameText = nfc(item.name || '');
         const qtyText = item.quantity > 1 ? `x${item.quantity}` : '';
         
         doc.font(fontBold).fontSize(11).fillColor('black')
@@ -849,7 +858,7 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
           const printOptions = {
             printer: targetPrinter,
             silent: true,
-            scale: 'noscale', // In 1:1 đúng kích thước PDF — driver máy in đã biết khổ 100x150mm
+            scale: 'fit', // Khớp với cách trình duyệt in (Fit to Page), driver tự xác định khổ giấy
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
@@ -970,7 +979,7 @@ app.post('/api/inventory/print-now', async (req, res) => {
           const printOptions = { 
             printer: targetPrinter, 
             silent: true,
-            scale: 'noscale', // In 1:1 đúng kích thước PDF — driver máy in đã biết khổ 100x150mm
+            scale: 'fit', // Khớp với cách trình duyệt in (Fit to Page), driver tự xác định khổ giấy
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
@@ -1340,21 +1349,27 @@ const printOrderLabels = async (orders) => {
     const writeStream = fs.createWriteStream(pdfPath);
     doc.pipe(writeStream);
 
-    // Đăng ký font Arial nếu có trên Windows để hiển thị được tiếng Việt có dấu
-    const hasArial = fs.existsSync('C:\\Windows\\Fonts\\arial.ttf') && fs.existsSync('C:\\Windows\\Fonts\\arialbd.ttf');
-    if (hasArial) {
-      doc.registerFont('Arial', 'C:\\Windows\\Fonts\\arial.ttf');
-      doc.registerFont('Arial-Bold', 'C:\\Windows\\Fonts\\arialbd.ttf');
+    // Ư u tiên Segoe UI (hỗ trợ Unicode/Vietnamese tốt nhất trên Windows), fallback về Arial, rồi Helvetica
+    const hasSegoe = fs.existsSync('C:\\Windows\\Fonts\\segoeui.ttf') && fs.existsSync('C:\\Windows\\Fonts\\seguisb.ttf');
+    const hasArial = !hasSegoe && fs.existsSync('C:\\Windows\\Fonts\\arial.ttf') && fs.existsSync('C:\\Windows\\Fonts\\arialbd.ttf');
+    if (hasSegoe) {
+      doc.registerFont('VNRegular', 'C:\\Windows\\Fonts\\segoeui.ttf');
+      doc.registerFont('VNBold', 'C:\\Windows\\Fonts\\seguisb.ttf');
+    } else if (hasArial) {
+      doc.registerFont('VNRegular', 'C:\\Windows\\Fonts\\arial.ttf');
+      doc.registerFont('VNBold', 'C:\\Windows\\Fonts\\arialbd.ttf');
     }
-    const fontRegular = hasArial ? 'Arial' : 'Helvetica';
-    const fontBold = hasArial ? 'Arial-Bold' : 'Helvetica-Bold';
+    const fontRegular = (hasSegoe || hasArial) ? 'VNRegular' : 'Helvetica';
+    const fontBold = (hasSegoe || hasArial) ? 'VNBold' : 'Helvetica-Bold';
+    // Chuẩn hoá NFC — tránh PDFKit decompose tiếng Việt thành base + dấu riêng
+    const nfc = (s) => (s || '').normalize('NFC');
     
     for (const order of orders) {
       doc.addPage();
       
       // 1. Vẽ Ngày tháng ở góc trên bên phải
       doc.font(fontBold).fontSize(10).fillColor('black')
-        .text(order.date || '', PAGE_W - PAD - 100, PAD, { width: 100, align: 'right' });
+        .text(nfc(order.date || ''), PAGE_W - PAD - 100, PAD, { width: 100, align: 'right' });
         
       // 2. Vẽ Barcode của trackingId (dùng bwip-js)
       try {
@@ -1370,27 +1385,29 @@ const printOrderLabels = async (orders) => {
         console.error(`[Printer] Không thể tạo barcode cho trackingId: ${order.trackingId}`, barErr.message);
       }
       
-      // 3. Vẽ QR Code của trackingId
+      // 3. Vẽ QR Code của trackingId — đặt cách lề phải đủ để không bị cắt
       try {
+        const qrSize = 18 * MM;
         const qrBuffer = await QRCode.toBuffer(order.trackingId || 'N/A', {
           type: 'png',
           width: 150,
           margin: 0,
           color: { dark: '#000000', light: '#FFFFFF' }
         });
-        doc.image(qrBuffer, PAGE_W - PAD - 18 * MM, PAD + 4 * MM, { width: 18 * MM, height: 18 * MM });
+        const qrX = PAGE_W - PAD - qrSize; // cách lề phải đúng PAD
+        doc.image(qrBuffer, qrX, PAD + 4 * MM, { width: qrSize, height: qrSize });
       } catch (qrErr) {
         console.error(`[Printer] Không thể tạo QR code cho trackingId: ${order.trackingId}`, qrErr.message);
       }
       
       // 4. Vẽ chữ Tracking
       doc.font(fontBold).fontSize(11).fillColor('black')
-        .text(`Tracking: ${order.trackingId || ''}`, PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
+        .text(nfc(`Tracking: ${order.trackingId || ''}`), PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
         
       // 5. Vẽ chữ Order ID
       if (order.orderId) {
         doc.font(fontBold).fontSize(10).fillColor('black')
-          .text(`Order ID: ${order.orderId}`, PAD, PAD + 31 * MM, { width: PAGE_W - (PAD * 2) });
+          .text(nfc(`Order ID: ${order.orderId}`), PAD, PAD + 31 * MM, { width: PAGE_W - (PAD * 2) });
       }
       
       // 6. Vẽ khung hộp sản phẩm
@@ -1411,7 +1428,7 @@ const printOrderLabels = async (orders) => {
       let currentY = boxY + 10 * MM;
       if (Array.isArray(order.productItems) && order.productItems.length > 0) {
         for (const item of order.productItems) {
-          const nameText = item.name || '';
+          const nameText = nfc(item.name || '');
           const qtyText = item.quantity > 1 ? `x${item.quantity}` : '';
           
           // Vẽ tên sản phẩm (căn trái)
@@ -1429,7 +1446,7 @@ const printOrderLabels = async (orders) => {
       } else {
         // Fallback nếu không có productItems
         doc.font(fontBold).fontSize(10).fillColor('black')
-          .text(order.product || '', boxX + 4 * MM, boxY + 10 * MM, { width: boxW - 8 * MM });
+          .text(nfc(order.product || ''), boxX + 4 * MM, boxY + 10 * MM, { width: boxW - 8 * MM });
       }
     }
     doc.end();
@@ -1445,7 +1462,7 @@ const printOrderLabels = async (orders) => {
         const printOptions = {
           printer: PRINTER_CONFIG.printerName,
           silent: true,
-          scale: 'noscale', // In 1:1 đúng kích thước PDF — driver máy in đã biết khổ 100x150mm
+          scale: 'fit', // Khớp với cách trình duyệt in (Fit to Page), driver tự xác định khổ giấy
           orientation: PRINTER_CONFIG.orientation || 'portrait'
         };
         if (PRINTER_CONFIG.paperName) {
