@@ -682,14 +682,6 @@ app.post('/api/inventory/print-test', async (req, res) => {
         try {
           try {
             fs.copyFileSync(pdfPath, path.join(uploadsDir, 'last_printed.pdf'));
-            // Phát tín hiệu in thành công để frontend cập nhật log và preview
-            io.emit('order_printed', {
-              timestamp: Date.now(),
-              orderId: 'TEST-0001',
-              trackingId: 'TEST-TRACKING-12345',
-              shop: 'TEST_SHEET',
-              details: 'In thử nhãn test (Khổ cấu hình)'
-            });
           } catch (copyErr) {
             console.error('Không thể lưu bản sao preview:', copyErr.message);
           }
@@ -705,6 +697,158 @@ app.post('/api/inventory/print-test', async (req, res) => {
           await print(pdfPath, printOptions);
           setTimeout(() => { try { fs.unlinkSync(pdfPath); } catch(_) {} }, 10000);
           res.json({ message: 'Đã gửi 2 tem test tới máy in.' });
+        } catch (printErr) {
+          res.status(500).json({ error: `Lỗi máy in: ${printErr.message}` });
+        }
+      }
+    });
+
+    writeStream.on('error', (e) => res.status(500).json({ error: `Lỗi tạo file: ${e.message}` }));
+  } catch (e) {
+    res.status(500).json({ error: `Lỗi tạo PDF test: ${e.message}` });
+  }
+});
+
+// 7.6. In thử nhãn đơn hàng Firebase — tạo PDF từ dữ liệu mẫu và in/preview
+app.post('/api/inventory/print-test-order', async (req, res) => {
+  const { printerName, pageWidth, pageHeight, orientation, mode } = req.body;
+
+  const testOrder = {
+    orderId: "TEST-0001",
+    trackingId: "TEST-TRACKING-12345",
+    date: new Date().toLocaleDateString("vi-VN"),
+    productItems: [
+      { name: "SẢN PHẨM IN THỬ MẪU A - SIZE M", quantity: 1 },
+      { name: "SẢN PHẨM IN THỬ MẪU B - SIZE L", quantity: 2 }
+    ],
+    product: "",
+    importSheetType: "TEST_SHEET"
+  };
+
+  try {
+    const targetPrinter = printerName || PRINTER_CONFIG.printerName;
+    const targetWidth = pageWidth ? Number(pageWidth) : (PRINTER_CONFIG.pageWidth || 100);
+    const targetHeight = pageHeight ? Number(pageHeight) : (PRINTER_CONFIG.pageHeight || 150);
+    const targetOrientation = orientation || (PRINTER_CONFIG.orientation || 'portrait');
+
+    const MM = 2.8346;
+    const PAGE_W = targetWidth * MM;
+    const PAGE_H = targetHeight * MM;
+    const PAD = 2 * MM;
+
+    const isPdfMode = mode === 'pdf';
+    const pdfFilename = `test_order_${Date.now()}.pdf`;
+    const pdfPath = isPdfMode
+      ? path.join(uploadsDir, pdfFilename)
+      : path.join(TEMP_DIR, pdfFilename);
+
+    const doc = new PDFDocument({ size: [PAGE_W, PAGE_H], margin: 0, autoFirstPage: false });
+    const writeStream = fs.createWriteStream(pdfPath);
+    doc.pipe(writeStream);
+
+    doc.addPage();
+
+    // 1. Vẽ Ngày tháng ở góc trên bên phải
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+      .text(testOrder.date || '', PAGE_W - PAD - 100, PAD, { width: 100, align: 'right' });
+      
+    // 2. Vẽ Barcode của trackingId
+    try {
+      const barcodeBuffer = await bwipjs.toBuffer({
+        bcid: 'code128',
+        text: testOrder.trackingId || 'N/A',
+        scale: 3,
+        height: 10,
+        includetext: false
+      });
+      doc.image(barcodeBuffer, PAD, PAD + 5 * MM, { width: 48 * MM, height: 12 * MM });
+    } catch (barErr) {
+      console.error(`[Printer] Không thể tạo barcode cho trackingId: ${testOrder.trackingId}`, barErr.message);
+    }
+    
+    // 3. Vẽ QR Code của trackingId
+    try {
+      const qrBuffer = await QRCode.toBuffer(testOrder.trackingId || 'N/A', {
+        type: 'png',
+        width: 150,
+        margin: 0,
+        color: { dark: '#000000', light: '#FFFFFF' }
+      });
+      doc.image(qrBuffer, PAGE_W - PAD - 15 * MM, PAD + 5 * MM, { width: 15 * MM, height: 15 * MM });
+    } catch (qrErr) {
+      console.error(`[Printer] Không thể tạo QR code cho trackingId: ${testOrder.trackingId}`, qrErr.message);
+    }
+    
+    // 4. Vẽ chữ Tracking
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+      .text(`Tracking: ${testOrder.trackingId || ''}`, PAD, PAD + 20 * MM, { width: PAGE_W - (PAD * 2) });
+      
+    // 5. Vẽ chữ Order ID
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+      .text(`Order ID: ${testOrder.orderId}`, PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
+    
+    // 6. Vẽ khung hộp sản phẩm
+    const boxX = PAD;
+    const boxY = PAD + 31 * MM;
+    const boxW = PAGE_W - (PAD * 2);
+    const boxH = PAGE_H - boxY - PAD;
+    
+    doc.rect(boxX, boxY, boxW, boxH).dash(4, { space: 4 }).stroke();
+    doc.undash();
+    
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+      .text('PRODUCT', boxX + 4 * MM, boxY + 4 * MM);
+      
+    let currentY = boxY + 10 * MM;
+    if (Array.isArray(testOrder.productItems) && testOrder.productItems.length > 0) {
+      for (const item of testOrder.productItems) {
+        const nameText = item.name || '';
+        const qtyText = item.quantity > 1 ? `x${item.quantity}` : '';
+        
+        doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+          .text(nameText, boxX + 4 * MM, currentY, { width: boxW - 14 * MM });
+          
+        if (qtyText) {
+          doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+            .text(qtyText, boxX + boxW - 10 * MM, currentY, { width: 6 * MM, align: 'right' });
+        }
+        currentY += 7 * MM;
+      }
+    }
+    
+    doc.end();
+
+    writeStream.on('finish', async () => {
+      if (isPdfMode) {
+        res.json({ message: 'Tạo PDF test đơn hàng thành công', pdfUrl: `/uploads/${pdfFilename}` });
+      } else {
+        try {
+          try {
+            fs.copyFileSync(pdfPath, path.join(uploadsDir, 'last_printed.pdf'));
+            // Phát socket
+            io.emit('order_printed', {
+              timestamp: Date.now(),
+              orderId: testOrder.orderId,
+              trackingId: testOrder.trackingId,
+              shop: testOrder.importSheetType || 'N/A',
+              details: 'In thử nhãn đơn hàng (Khổ cấu hình)'
+            });
+          } catch (copyErr) {
+            console.error('Không thể lưu bản sao preview:', copyErr.message);
+          }
+
+          const printOptions = {
+            printer: targetPrinter,
+            silent: true,
+            scale: 'noscale',
+            orientation: targetOrientation
+          };
+          if (PRINTER_CONFIG.paperName) {
+            printOptions.paper = PRINTER_CONFIG.paperName;
+          }
+          await print(pdfPath, printOptions);
+          setTimeout(() => { try { fs.unlinkSync(pdfPath); } catch(_) {} }, 10000);
+          res.json({ message: 'Đã gửi nhãn đơn hàng in thử tới máy in.' });
         } catch (printErr) {
           res.status(500).json({ error: `Lỗi máy in: ${printErr.message}` });
         }
@@ -809,14 +953,6 @@ app.post('/api/inventory/print-now', async (req, res) => {
         try {
           try {
             fs.copyFileSync(pdfPath, path.join(uploadsDir, 'last_printed.pdf'));
-            // Phát tín hiệu in SKU thành công để frontend cập nhật log và preview
-            products.forEach(p => {
-              io.emit('inventory_updated', {
-                type: 'PRINT',
-                product: p,
-                timestamp: Date.now()
-              });
-            });
           } catch (copyErr) {
             console.error('Không thể lưu bản sao preview:', copyErr.message);
           }

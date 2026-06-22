@@ -76,8 +76,8 @@ const PrintMonitorPage = () => {
       const res = await fetch(`http://${window.location.hostname}:3001/api/logs`);
       const data = await res.json();
       if (data.data) {
-        // Lọc các log in ấn tem nhãn SKU (PRINT) và in đơn hàng (ORDER_PRINT)
-        const printLogs = data.data.filter(log => log.actionType === 'PRINT' || log.actionType === 'ORDER_PRINT');
+        // Lọc các log in ấn đơn hàng (ORDER_PRINT)
+        const printLogs = data.data.filter(log => log.actionType === 'ORDER_PRINT');
         setDbLogs(printLogs);
       }
     } catch (err) {
@@ -140,7 +140,7 @@ const PrintMonitorPage = () => {
     setLoadingPreview(true);
     setTestFeedback(null);
     try {
-      const res = await fetch(`http://${window.location.hostname}:3001/api/inventory/print-test`, {
+      const res = await fetch(`http://${window.location.hostname}:3001/api/inventory/print-test-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -154,8 +154,8 @@ const PrintMonitorPage = () => {
       const data = await res.json();
       if (data.pdfUrl) {
         setPreviewUrl(`http://${window.location.hostname}:3001${data.pdfUrl}?t=${Date.now()}`);
-        setTestFeedback({ type: 'success', text: '✓ Đã tạo PDF test thành công!' });
-        addConsoleLog('🖥️ Đã xem thử PDF nhãn test thành công.', 'system');
+        setTestFeedback({ type: 'success', text: '✓ Đã tạo PDF test đơn hàng thành công!' });
+        addConsoleLog('🖥️ Đã xem thử PDF nhãn test đơn hàng thành công.', 'system');
       } else {
         setTestFeedback({ type: 'error', text: `✗ Lỗi: ${data.error || 'Không thể tạo PDF'}` });
       }
@@ -171,7 +171,7 @@ const PrintMonitorPage = () => {
     setPrintingTest(true);
     setTestFeedback(null);
     try {
-      const res = await fetch(`http://${window.location.hostname}:3001/api/inventory/print-test`, {
+      const res = await fetch(`http://${window.location.hostname}:3001/api/inventory/print-test-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -183,7 +183,7 @@ const PrintMonitorPage = () => {
       });
       const data = await res.json();
       if (res.ok) {
-        setTestFeedback({ type: 'success', text: '✓ Đã gửi lệnh in test thành công!' });
+        setTestFeedback({ type: 'success', text: '✓ Đã gửi lệnh in test đơn hàng thành công!' });
       } else {
         setTestFeedback({ type: 'error', text: `✗ Lỗi in: ${data.error || 'In thất bại'}` });
       }
@@ -238,21 +238,10 @@ const PrintMonitorPage = () => {
       }
     });
 
-    socket.on('inventory_updated', (data) => {
-      if (data && data.type === 'PRINT') {
-        addConsoleLog(`🏷️ LỆNH IN TEM SKU: Đã in tem cho sản phẩm #${data.product?.id || ''} (${data.product?.sku || ''})`, 'print');
-        fetchDbLogs();
-        setTimeout(() => {
-          setPreviewUrl(`http://${window.location.hostname}:3001/uploads/last_printed.pdf?t=${Date.now()}`);
-        }, 800);
-      }
-    });
-
     return () => {
       socket.off('firebase_status');
       socket.off('printer_settings_updated');
       socket.off('order_printed');
-      socket.off('inventory_updated');
     };
   }, [socket]);
 
@@ -478,7 +467,7 @@ const PrintMonitorPage = () => {
           ) : logsError ? (
             <div className="table-state text-danger">{logsError}</div>
           ) : dbLogs.length === 0 ? (
-            <div className="table-state">Chưa có lịch sử in đơn hàng hoặc in tem SKU nào trong database.</div>
+            <div className="table-state">Chưa có lịch sử in đơn hàng nào trong database.</div>
           ) : (
             <table className="monitor-table">
               <thead>
