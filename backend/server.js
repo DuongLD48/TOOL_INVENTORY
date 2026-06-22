@@ -688,7 +688,7 @@ app.post('/api/inventory/print-test', async (req, res) => {
           const printOptions = {
             printer: targetPrinter,
             silent: true,
-            scale: 'shrink', // Thu nhỏ nhẹ và căn giữa chỉ khi PDF lớn hơn vùng in
+            scale: 'noscale', // in 1:1 chính xác — paperSize '100x150' đảm bảo driver dùng đúng khổ giấy
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
@@ -858,7 +858,7 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
           const printOptions = {
             printer: targetPrinter,
             silent: true,
-            scale: 'shrink', // Thu nhỏ nhẹ và căn giữa chỉ khi PDF lớn hơn vùng in
+            scale: 'noscale', // in 1:1 chính xác — paperSize '100x150' đảm bảo driver dùng đúng khổ giấy
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
@@ -979,7 +979,7 @@ app.post('/api/inventory/print-now', async (req, res) => {
           const printOptions = { 
             printer: targetPrinter, 
             silent: true,
-            scale: 'shrink', // Thu nhỏ nhẹ và căn giữa chỉ khi PDF lớn hơn vùng in; nếu bằng/nhỏ hơn thì giữ nguyên kích thước
+            scale: 'noscale', // in 1:1 chính xác — paperSize '100x150' đảm bảo driver dùng đúng khổ giấy; nếu bằng/nhỏ hơn thì giữ nguyên kích thước
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
@@ -1462,7 +1462,7 @@ const printOrderLabels = async (orders) => {
         const printOptions = {
           printer: PRINTER_CONFIG.printerName,
           silent: true,
-          scale: 'shrink', // Thu nhỏ nhẹ và căn giữa chỉ khi PDF lớn hơn vùng in; nếu bằng/nhỏ hơn thì giữ nguyên kích thước
+          scale: 'noscale', // in 1:1 chính xác — paperSize '100x150' đảm bảo driver dùng đúng khổ giấy
           orientation: PRINTER_CONFIG.orientation || 'portrait'
         };
         if (PRINTER_CONFIG.paperName) {
