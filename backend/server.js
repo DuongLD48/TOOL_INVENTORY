@@ -688,13 +688,11 @@ app.post('/api/inventory/print-test', async (req, res) => {
           const printOptions = {
             printer: targetPrinter,
             silent: true,
-            scale: 'fit', // Cân giữa và co giãn khớp với lề vùng in của máy in
+            scale: 'noscale', // In 1:1 đúng kích thước PDF — driver máy in đã biết khổ 100x150mm
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
             printOptions.paperSize = PRINTER_CONFIG.paperName;
-          } else {
-            printOptions.paperSize = `${targetWidth}mm x ${targetHeight}mm`; // Ép khổ giấy động để tránh lệch lề
           }
           await print(pdfPath, printOptions);
           setTimeout(() => { try { fs.unlinkSync(pdfPath); } catch(_) {} }, 10000);
@@ -851,13 +849,11 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
           const printOptions = {
             printer: targetPrinter,
             silent: true,
-            scale: 'fit', // Co giãn cân giữa khớp với máy in
+            scale: 'noscale', // In 1:1 đúng kích thước PDF — driver máy in đã biết khổ 100x150mm
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
             printOptions.paperSize = PRINTER_CONFIG.paperName;
-          } else {
-            printOptions.paperSize = `${targetWidth}mm x ${targetHeight}mm`; // Ép khổ giấy động để tránh lệch lề
           }
           console.log(`[Printer] Gửi in thử đơn hàng với cấu hình:`, printOptions);
           await print(pdfPath, printOptions);
@@ -974,13 +970,11 @@ app.post('/api/inventory/print-now', async (req, res) => {
           const printOptions = { 
             printer: targetPrinter, 
             silent: true,
-            scale: 'fit', // Cân giữa và co giãn khớp với lề vùng in của máy in
+            scale: 'noscale', // In 1:1 đúng kích thước PDF — driver máy in đã biết khổ 100x150mm
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
             printOptions.paperSize = PRINTER_CONFIG.paperName;
-          } else {
-            printOptions.paperSize = `${targetWidth}mm x ${targetHeight}mm`; // Ép khổ giấy động để tránh lệch lề
           }
           await print(pdfPath, printOptions);
           // Dọn file tạm sau 10 giây
@@ -1451,14 +1445,13 @@ const printOrderLabels = async (orders) => {
         const printOptions = {
           printer: PRINTER_CONFIG.printerName,
           silent: true,
-          scale: 'fit', // Thay thế 'noscale' bằng 'fit' để khớp với trình duyệt và tự động căn giữa
+          scale: 'noscale', // In 1:1 đúng kích thước PDF — driver máy in đã biết khổ 100x150mm
           orientation: PRINTER_CONFIG.orientation || 'portrait'
         };
         if (PRINTER_CONFIG.paperName) {
           printOptions.paperSize = PRINTER_CONFIG.paperName;
-        } else {
-          printOptions.paperSize = `${PRINTER_CONFIG.pageWidth || 100}mm x ${PRINTER_CONFIG.pageHeight || 150}mm`; // Ép khổ giấy động để tránh lệch lề
         }
+        console.log(`[Printer] Gửi lệnh in đơn hàng thật với cấu hình:`, printOptions);
         await print(pdfPath, printOptions);
         console.log(`[Printer] Đã gửi lệnh in thành công.`);
         
