@@ -734,7 +734,7 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
     const MM = 2.8346;
     const PAGE_W = targetWidth * MM;
     const PAGE_H = targetHeight * MM;
-    const PAD = 2 * MM;
+    const PAD = 8 * MM; // 8mm margin, khớp với HTML print template
 
     const isPdfMode = mode === 'pdf';
     const pdfFilename = `test_order_${Date.now()}.pdf`;
@@ -761,7 +761,7 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
         height: 10,
         includetext: false
       });
-      doc.image(barcodeBuffer, PAD, PAD + 5 * MM, { width: 48 * MM, height: 12 * MM });
+      doc.image(barcodeBuffer, PAD, PAD + 4 * MM, { width: 48 * MM, height: 15 * MM });
     } catch (barErr) {
       console.error(`[Printer] Không thể tạo barcode cho trackingId: ${testOrder.trackingId}`, barErr.message);
     }
@@ -774,22 +774,22 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
         margin: 0,
         color: { dark: '#000000', light: '#FFFFFF' }
       });
-      doc.image(qrBuffer, PAGE_W - PAD - 15 * MM, PAD + 5 * MM, { width: 15 * MM, height: 15 * MM });
+      doc.image(qrBuffer, PAGE_W - PAD - 18 * MM, PAD + 4 * MM, { width: 18 * MM, height: 18 * MM });
     } catch (qrErr) {
       console.error(`[Printer] Không thể tạo QR code cho trackingId: ${testOrder.trackingId}`, qrErr.message);
     }
     
     // 4. Vẽ chữ Tracking
     doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
-      .text(`Tracking: ${testOrder.trackingId || ''}`, PAD, PAD + 20 * MM, { width: PAGE_W - (PAD * 2) });
+      .text(`Tracking: ${testOrder.trackingId || ''}`, PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
       
     // 5. Vẽ chữ Order ID
     doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
-      .text(`Order ID: ${testOrder.orderId}`, PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
+      .text(`Order ID: ${testOrder.orderId}`, PAD, PAD + 31 * MM, { width: PAGE_W - (PAD * 2) });
     
     // 6. Vẽ khung hộp sản phẩm
     const boxX = PAD;
-    const boxY = PAD + 31 * MM;
+    const boxY = PAD + 38 * MM;
     const boxW = PAGE_W - (PAD * 2);
     const boxH = PAGE_H - boxY - PAD;
     
@@ -1322,7 +1322,7 @@ const printOrderLabels = async (orders) => {
     const MM = 2.8346;
     const PAGE_W = (Number(PRINTER_CONFIG.pageWidth) || 100) * MM;
     const PAGE_H = (Number(PRINTER_CONFIG.pageHeight) || 150) * MM;
-    const PAD = 2 * MM;
+    const PAD = 8 * MM; // 8mm margin, khớp với HTML print template
     
     const pdfPath = path.join(TEMP_DIR, `orders_${Date.now()}.pdf`);
     const doc = new PDFDocument({ size: [PAGE_W, PAGE_H], margin: 0, autoFirstPage: false });
@@ -1345,7 +1345,7 @@ const printOrderLabels = async (orders) => {
           height: 10,
           includetext: false
         });
-        doc.image(barcodeBuffer, PAD, PAD + 5 * MM, { width: 48 * MM, height: 12 * MM });
+        doc.image(barcodeBuffer, PAD, PAD + 4 * MM, { width: 48 * MM, height: 15 * MM });
       } catch (barErr) {
         console.error(`[Printer] Không thể tạo barcode cho trackingId: ${order.trackingId}`, barErr.message);
       }
@@ -1358,24 +1358,24 @@ const printOrderLabels = async (orders) => {
           margin: 0,
           color: { dark: '#000000', light: '#FFFFFF' }
         });
-        doc.image(qrBuffer, PAGE_W - PAD - 15 * MM, PAD + 5 * MM, { width: 15 * MM, height: 15 * MM });
+        doc.image(qrBuffer, PAGE_W - PAD - 18 * MM, PAD + 4 * MM, { width: 18 * MM, height: 18 * MM });
       } catch (qrErr) {
         console.error(`[Printer] Không thể tạo QR code cho trackingId: ${order.trackingId}`, qrErr.message);
       }
       
       // 4. Vẽ chữ Tracking
       doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
-        .text(`Tracking: ${order.trackingId || ''}`, PAD, PAD + 20 * MM, { width: PAGE_W - (PAD * 2) });
+        .text(`Tracking: ${order.trackingId || ''}`, PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
         
       // 5. Vẽ chữ Order ID
       if (order.orderId) {
         doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
-          .text(`Order ID: ${order.orderId}`, PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
+          .text(`Order ID: ${order.orderId}`, PAD, PAD + 31 * MM, { width: PAGE_W - (PAD * 2) });
       }
       
       // 6. Vẽ khung hộp sản phẩm
       const boxX = PAD;
-      const boxY = PAD + 31 * MM;
+      const boxY = PAD + 38 * MM;
       const boxW = PAGE_W - (PAD * 2);
       const boxH = PAGE_H - boxY - PAD;
       
