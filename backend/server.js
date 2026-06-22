@@ -1148,7 +1148,7 @@ const printOrderLabels = async (orders) => {
     const MM = 2.8346;
     const PAGE_W = (Number(PRINTER_CONFIG.pageWidth) || 100) * MM;
     const PAGE_H = (Number(PRINTER_CONFIG.pageHeight) || 150) * MM;
-    const PAD = 8 * MM;
+    const PAD = 2 * MM;
     
     const pdfPath = path.join(TEMP_DIR, `orders_${Date.now()}.pdf`);
     const doc = new PDFDocument({ size: [PAGE_W, PAGE_H], margin: 0, autoFirstPage: false });
