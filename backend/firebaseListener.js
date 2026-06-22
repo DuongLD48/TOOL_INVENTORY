@@ -74,6 +74,12 @@ function initFirebaseListener(printCallback) {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const batchData = change.doc.data();
+            
+            if (batchData.printedViaBrowser === true) {
+              console.log(`[Firebase Listener] Bỏ qua in tự động cho lô in ID=${change.doc.id} (Được in thủ công qua trình duyệt).`);
+              return;
+            }
+
             console.log(`[Firebase Listener] Nhận lô in mới: ID=${change.doc.id}, Số đơn=${batchData.orderCount || 0}`);
             
             if (Array.isArray(batchData.orders) && batchData.orders.length > 0) {
