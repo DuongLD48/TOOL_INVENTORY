@@ -709,6 +709,134 @@ app.post('/api/inventory/print-test', async (req, res) => {
   }
 });
 
+// Hàm vẽ thiết kế nhãn đơn hàng chuẩn 100x150mm (khớp 100% với HTML/CSS duanwebquanlydon)
+const renderOrderPage = async (doc, order, fontRegular, fontBold, PAGE_W, PAGE_H, MM, PAD) => {
+  const nfc = (s) => (s || '').normalize('NFC');
+  
+  // 1. Vẽ Ngày tháng ở góc trên bên phải
+  const dateText = nfc(order.date || '');
+  doc.font(fontBold).fontSize(10.5).fillColor('black');
+  const dateHeight = doc.currentLineHeight();
+  const dateY = PAD;
+  doc.text(dateText, PAD, dateY, { width: PAGE_W - 2 * PAD, align: 'right' });
+  
+  let currentY = dateY + dateHeight + 3 * MM;
+  
+  // 2. Vẽ Code Container (Barcode & QR Code)
+  const codeContainerH = 52.5; // 70px * 0.75
+  const qrSize = 52.5; // 70px * 0.75
+  const gap = 5 * MM; // 14.17pt
+  
+  // Vẽ Barcode bên trái
+  const barcodeX = PAD;
+  const barcodeY = currentY;
+  const barcodeMaxW = (PAGE_W - 2 * PAD) - qrSize - gap;
+  
+  try {
+    const barcodeBuffer = await bwipjs.toBuffer({
+      bcid: 'code128',
+      text: order.trackingId || 'N/A',
+      scale: 3,
+      height: 10,
+      includetext: false
+    });
+    // Clip barcode để giả lập CSS overflow: hidden
+    doc.save();
+    doc.rect(barcodeX, barcodeY, barcodeMaxW, codeContainerH).clip();
+    doc.image(barcodeBuffer, barcodeX, barcodeY, { height: codeContainerH });
+    doc.restore();
+  } catch (barErr) {
+    console.error(`[Printer] Không thể tạo barcode cho trackingId: ${order.trackingId}`, barErr.message);
+  }
+  
+  // Vẽ QR Code bên phải
+  const qrX = PAGE_W - PAD - qrSize;
+  const qrY = currentY;
+  try {
+    const qrBuffer = await QRCode.toBuffer(order.trackingId || 'N/A', {
+      type: 'png',
+      width: 150,
+      margin: 0,
+      color: { dark: '#000000', light: '#FFFFFF' }
+    });
+    doc.image(qrBuffer, qrX, qrY, { width: qrSize, height: qrSize });
+  } catch (qrErr) {
+    console.error(`[Printer] Không thể tạo QR code cho trackingId: ${order.trackingId}`, qrErr.message);
+  }
+  
+  currentY += codeContainerH + 3 * MM;
+  
+  // 3. Vẽ chữ Tracking
+  const trackingText = nfc(`Tracking: ${order.trackingId || ''}`);
+  doc.font(fontBold).fontSize(10.5).fillColor('black');
+  const trackingH = doc.heightOfString(trackingText, { width: PAGE_W - 2 * PAD });
+  doc.text(trackingText, PAD, currentY, { width: PAGE_W - 2 * PAD });
+  
+  currentY += trackingH + 3 * MM;
+  
+  // 4. Vẽ chữ Order ID (nếu có)
+  if (order.orderId) {
+    const orderIdText = nfc(`Order ID: ${order.orderId}`);
+    doc.font(fontBold).fontSize(9.75).fillColor('black');
+    const orderIdH = doc.heightOfString(orderIdText, { width: PAGE_W - 2 * PAD });
+    doc.text(orderIdText, PAD, currentY, { width: PAGE_W - 2 * PAD });
+    currentY += orderIdH + 3 * MM;
+  }
+  
+  // 5. Vẽ khung hộp sản phẩm
+  const boxX = PAD;
+  const boxY = currentY;
+  const boxW = PAGE_W - 2 * PAD;
+  const boxH = PAGE_H - boxY - PAD;
+  
+  doc.rect(boxX, boxY, boxW, boxH).lineWidth(1.5).dash(4, { space: 4 }).stroke();
+  doc.undash();
+  
+  // Vẽ nội dung sản phẩm bên trong hộp
+  let boxContentY = boxY + 5 * MM;
+  
+  // Tiêu đề PRODUCT
+  doc.font(fontBold).fontSize(9).fillColor('black');
+  doc.text('PRODUCT', boxX + 5 * MM, boxContentY);
+  const titleHeight = doc.currentLineHeight();
+  
+  boxContentY += titleHeight + 2 * MM;
+  
+  const productX = boxX + 5 * MM;
+  const productW = boxW - 10 * MM;
+  
+  if (Array.isArray(order.productItems) && order.productItems.length > 0) {
+    for (const item of order.productItems) {
+      const nameText = nfc(item.name || '');
+      const qtyText = item.quantity > 1 ? `x${item.quantity}` : '';
+      
+      doc.font(fontBold).fontSize(10.5).fillColor('black');
+      
+      if (qtyText) {
+        const qtyW = 10 * MM;
+        const qtyX = boxX + boxW - 5 * MM - qtyW;
+        const nameW = qtyX - productX - 2 * MM;
+        
+        const nameH = doc.heightOfString(nameText, { width: nameW });
+        doc.text(nameText, productX, boxContentY, { width: nameW });
+        doc.text(qtyText, qtyX, boxContentY, { width: qtyW, align: 'right' });
+        
+        boxContentY += nameH + 3; // Gap 3pt
+      } else {
+        const nameH = doc.heightOfString(nameText, { width: productW });
+        doc.text(nameText, productX, boxContentY, { width: productW });
+        
+        boxContentY += nameH + 3; // Gap 3pt
+      }
+    }
+  } else {
+    // Fallback nếu không có productItems dạng mảng cấu trúc
+    doc.font(fontBold).fontSize(10.5).fillColor('black');
+    const fallbackText = nfc(order.product || '');
+    doc.text(fallbackText, productX, boxContentY, { width: productW });
+  }
+};
+
 // 7.6. In thử nhãn đơn hàng Firebase — tạo PDF từ dữ liệu mẫu và in/preview
 app.post('/api/inventory/print-test-order', async (req, res) => {
   const { printerName, pageWidth, pageHeight, orientation, mode } = req.body;
@@ -758,82 +886,10 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
     }
     const fontRegular = (hasSegoe || hasArial) ? 'VNRegular' : 'Helvetica';
     const fontBold = (hasSegoe || hasArial) ? 'VNBold' : 'Helvetica-Bold';
-    // Chuẩn hoá NFC — tránh PDFKit decompose tiếng Việt thành base + dấu riêng
-    const nfc = (s) => (s || '').normalize('NFC');
     console.log(`[Printer] Font sử dụng: ${fontBold} (Segoe=${hasSegoe}, Arial=${hasArial})`);
 
     doc.addPage();
-
-    // 1. Vẽ Ngày tháng ở góc trên bên phải
-    doc.font(fontBold).fontSize(10).fillColor('black')
-      .text(nfc(testOrder.date || ''), PAGE_W - PAD - 100, PAD, { width: 100, align: 'right' });
-      
-    // 2. Vẽ Barcode của trackingId
-    try {
-      const barcodeBuffer = await bwipjs.toBuffer({
-        bcid: 'code128',
-        text: testOrder.trackingId || 'N/A',
-        scale: 3,
-        height: 10,
-        includetext: false
-      });
-      doc.image(barcodeBuffer, PAD, PAD + 4 * MM, { width: 48 * MM, height: 15 * MM });
-    } catch (barErr) {
-      console.error(`[Printer] Không thể tạo barcode cho trackingId: ${testOrder.trackingId}`, barErr.message);
-    }
-    
-    // 3. Vẽ QR Code của trackingId — đặt cách lề phải đủ để không bị cắt
-    try {
-      const qrSize = 18 * MM;
-      const qrBuffer = await QRCode.toBuffer(testOrder.trackingId || 'N/A', {
-        type: 'png',
-        width: 150,
-        margin: 0,
-        color: { dark: '#000000', light: '#FFFFFF' }
-      });
-      const qrX = PAGE_W - PAD - qrSize; // cách lề phải đúng PAD
-      doc.image(qrBuffer, qrX, PAD + 4 * MM, { width: qrSize, height: qrSize });
-    } catch (qrErr) {
-      console.error(`[Printer] Không thể tạo QR code cho trackingId: ${testOrder.trackingId}`, qrErr.message);
-    }
-    
-    // 4. Vẽ chữ Tracking
-    doc.font(fontBold).fontSize(11).fillColor('black')
-      .text(nfc(`Tracking: ${testOrder.trackingId || ''}`), PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
-      
-    // 5. Vẽ chữ Order ID
-    doc.font(fontBold).fontSize(10).fillColor('black')
-      .text(nfc(`Order ID: ${testOrder.orderId}`), PAD, PAD + 31 * MM, { width: PAGE_W - (PAD * 2) });
-    
-    // 6. Vẽ khung hộp sản phẩm
-    const boxX = PAD;
-    const boxY = PAD + 38 * MM;
-    const boxW = PAGE_W - (PAD * 2);
-    const boxH = PAGE_H - boxY - PAD;
-    
-    doc.rect(boxX, boxY, boxW, boxH).dash(4, { space: 4 }).stroke();
-    doc.undash();
-    
-    doc.font(fontBold).fontSize(10).fillColor('black')
-      .text('PRODUCT', boxX + 4 * MM, boxY + 4 * MM);
-      
-    let currentY = boxY + 10 * MM;
-    if (Array.isArray(testOrder.productItems) && testOrder.productItems.length > 0) {
-      for (const item of testOrder.productItems) {
-        const nameText = nfc(item.name || '');
-        const qtyText = item.quantity > 1 ? `x${item.quantity}` : '';
-        
-        doc.font(fontBold).fontSize(11).fillColor('black')
-          .text(nameText, boxX + 4 * MM, currentY, { width: boxW - 14 * MM });
-          
-        if (qtyText) {
-          doc.font(fontBold).fontSize(11).fillColor('black')
-            .text(qtyText, boxX + boxW - 10 * MM, currentY, { width: 6 * MM, align: 'right' });
-        }
-        currentY += 7 * MM;
-      }
-    }
-    
+    await renderOrderPage(doc, testOrder, fontRegular, fontBold, PAGE_W, PAGE_H, MM, PAD);
     doc.end();
 
     writeStream.on('finish', async () => {
@@ -1366,88 +1422,7 @@ const printOrderLabels = async (orders) => {
     
     for (const order of orders) {
       doc.addPage();
-      
-      // 1. Vẽ Ngày tháng ở góc trên bên phải
-      doc.font(fontBold).fontSize(10).fillColor('black')
-        .text(nfc(order.date || ''), PAGE_W - PAD - 100, PAD, { width: 100, align: 'right' });
-        
-      // 2. Vẽ Barcode của trackingId (dùng bwip-js)
-      try {
-        const barcodeBuffer = await bwipjs.toBuffer({
-          bcid: 'code128',
-          text: order.trackingId || 'N/A',
-          scale: 3,
-          height: 10,
-          includetext: false
-        });
-        doc.image(barcodeBuffer, PAD, PAD + 4 * MM, { width: 48 * MM, height: 15 * MM });
-      } catch (barErr) {
-        console.error(`[Printer] Không thể tạo barcode cho trackingId: ${order.trackingId}`, barErr.message);
-      }
-      
-      // 3. Vẽ QR Code của trackingId — đặt cách lề phải đủ để không bị cắt
-      try {
-        const qrSize = 18 * MM;
-        const qrBuffer = await QRCode.toBuffer(order.trackingId || 'N/A', {
-          type: 'png',
-          width: 150,
-          margin: 0,
-          color: { dark: '#000000', light: '#FFFFFF' }
-        });
-        const qrX = PAGE_W - PAD - qrSize; // cách lề phải đúng PAD
-        doc.image(qrBuffer, qrX, PAD + 4 * MM, { width: qrSize, height: qrSize });
-      } catch (qrErr) {
-        console.error(`[Printer] Không thể tạo QR code cho trackingId: ${order.trackingId}`, qrErr.message);
-      }
-      
-      // 4. Vẽ chữ Tracking
-      doc.font(fontBold).fontSize(11).fillColor('black')
-        .text(nfc(`Tracking: ${order.trackingId || ''}`), PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
-        
-      // 5. Vẽ chữ Order ID
-      if (order.orderId) {
-        doc.font(fontBold).fontSize(10).fillColor('black')
-          .text(nfc(`Order ID: ${order.orderId}`), PAD, PAD + 31 * MM, { width: PAGE_W - (PAD * 2) });
-      }
-      
-      // 6. Vẽ khung hộp sản phẩm
-      const boxX = PAD;
-      const boxY = PAD + 38 * MM;
-      const boxW = PAGE_W - (PAD * 2);
-      const boxH = PAGE_H - boxY - PAD;
-      
-      // Vẽ viền hộp (đường đứt nét giống dashed border)
-      doc.rect(boxX, boxY, boxW, boxH).dash(4, { space: 4 }).stroke();
-      doc.undash(); // Khôi phục nét liền cho các thành phần khác
-      
-      // Tiêu đề khung
-      doc.font(fontBold).fontSize(10).fillColor('black')
-        .text('PRODUCT', boxX + 4 * MM, boxY + 4 * MM);
-        
-      // Nội dung danh sách sản phẩm
-      let currentY = boxY + 10 * MM;
-      if (Array.isArray(order.productItems) && order.productItems.length > 0) {
-        for (const item of order.productItems) {
-          const nameText = nfc(item.name || '');
-          const qtyText = item.quantity > 1 ? `x${item.quantity}` : '';
-          
-          // Vẽ tên sản phẩm (căn trái)
-          doc.font(fontBold).fontSize(11).fillColor('black')
-            .text(nameText, boxX + 4 * MM, currentY, { width: boxW - 14 * MM });
-            
-          // Vẽ số lượng sản phẩm (căn phải)
-          if (qtyText) {
-            doc.font(fontBold).fontSize(11).fillColor('black')
-              .text(qtyText, boxX + boxW - 10 * MM, currentY, { width: 6 * MM, align: 'right' });
-          }
-          
-          currentY += 7 * MM; // Khoảng cách dòng
-        }
-      } else {
-        // Fallback nếu không có productItems
-        doc.font(fontBold).fontSize(10).fillColor('black')
-          .text(nfc(order.product || ''), boxX + 4 * MM, boxY + 10 * MM, { width: boxW - 8 * MM });
-      }
+      await renderOrderPage(doc, order, fontRegular, fontBold, PAGE_W, PAGE_H, MM, PAD);
     }
     doc.end();
     
