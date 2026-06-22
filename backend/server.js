@@ -19,7 +19,8 @@ let PRINTER_CONFIG = {
   printerName: process.env.PRINTER_NAME || 'Xprinter XP-470B',
   pageWidth: Number(process.env.PAGE_WIDTH) || 100,
   pageHeight: Number(process.env.PAGE_HEIGHT) || 150,
-  orientation: process.env.ORIENTATION || 'portrait'
+  orientation: process.env.ORIENTATION || 'portrait',
+  paperName: process.env.PAPER_NAME || ''
 };
 
 const configPath = path.join(__dirname, 'printer_config.json');
@@ -30,6 +31,7 @@ if (fs.existsSync(configPath)) {
     if (savedConfig.pageWidth) PRINTER_CONFIG.pageWidth = Number(savedConfig.pageWidth) || 100;
     if (savedConfig.pageHeight) PRINTER_CONFIG.pageHeight = Number(savedConfig.pageHeight) || 150;
     if (savedConfig.orientation) PRINTER_CONFIG.orientation = savedConfig.orientation;
+    if (savedConfig.paperName !== undefined) PRINTER_CONFIG.paperName = savedConfig.paperName;
     console.log(`[Printer Config] Đã tải cấu hình máy in:`, PRINTER_CONFIG);
   } catch (e) {
     console.error('[Printer Config] Lỗi đọc file cấu hình, sử dụng mặc định:', e.message);
@@ -678,12 +680,16 @@ app.post('/api/inventory/print-test', async (req, res) => {
         res.json({ message: 'Tạo PDF test thành công', pdfUrl: `/uploads/${pdfFilename}` });
       } else {
         try {
-          await print(pdfPath, {
+          const printOptions = {
             printer: targetPrinter,
             silent: true,
             scale: 'noscale',
             orientation: targetOrientation
-          });
+          };
+          if (PRINTER_CONFIG.paperName) {
+            printOptions.paper = PRINTER_CONFIG.paperName;
+          }
+          await print(pdfPath, printOptions);
           setTimeout(() => { try { fs.unlinkSync(pdfPath); } catch(_) {} }, 10000);
           res.json({ message: 'Đã gửi 2 tem test tới máy in.' });
         } catch (printErr) {
@@ -788,12 +794,16 @@ app.post('/api/inventory/print-now', async (req, res) => {
       // Chờ file được ghi xong rồi mới in
       writeStream.on('finish', async () => {
         try {
-          await print(pdfPath, { 
+          const printOptions = { 
             printer: targetPrinter, 
             silent: true,
             scale: 'noscale',
             orientation: targetOrientation
-          });
+          };
+          if (PRINTER_CONFIG.paperName) {
+            printOptions.paper = PRINTER_CONFIG.paperName;
+          }
+          await print(pdfPath, printOptions);
           // Dọn file tạm sau 10 giây
           setTimeout(() => { try { fs.unlinkSync(pdfPath); } catch(_) {} }, 10000);
 
@@ -1098,18 +1108,20 @@ app.get('/api/settings/printer', (req, res) => {
     printerName: PRINTER_CONFIG.printerName,
     pageWidth: PRINTER_CONFIG.pageWidth,
     pageHeight: PRINTER_CONFIG.pageHeight,
-    orientation: PRINTER_CONFIG.orientation
+    orientation: PRINTER_CONFIG.orientation,
+    paperName: PRINTER_CONFIG.paperName
   });
 });
 
 // Lưu cấu hình máy in mới
 app.post('/api/settings/printer', (req, res) => {
-  const { printerName, pageWidth, pageHeight, orientation } = req.body;
+  const { printerName, pageWidth, pageHeight, orientation, paperName } = req.body;
   
   if (printerName !== undefined) PRINTER_CONFIG.printerName = printerName;
   if (pageWidth !== undefined) PRINTER_CONFIG.pageWidth = Number(pageWidth);
   if (pageHeight !== undefined) PRINTER_CONFIG.pageHeight = Number(pageHeight);
   if (orientation !== undefined) PRINTER_CONFIG.orientation = orientation;
+  if (paperName !== undefined) PRINTER_CONFIG.paperName = paperName;
   
   try {
     fs.writeFileSync(configPath, JSON.stringify(PRINTER_CONFIG, null, 2));
@@ -1243,12 +1255,16 @@ const printOrderLabels = async (orders) => {
     writeStream.on('finish', async () => {
       try {
         console.log(`[Printer] Đang gửi lệnh in ${orders.length} nhãn tới máy in: ${PRINTER_CONFIG.printerName}...`);
-        await print(pdfPath, {
+        const printOptions = {
           printer: PRINTER_CONFIG.printerName,
           silent: true,
           scale: 'noscale',
           orientation: PRINTER_CONFIG.orientation || 'portrait'
-        });
+        };
+        if (PRINTER_CONFIG.paperName) {
+          printOptions.paper = PRINTER_CONFIG.paperName;
+        }
+        await print(pdfPath, printOptions);
         console.log(`[Printer] Đã gửi lệnh in thành công.`);
         
         // Ghi nhật ký vào SQLite & Phát tin in ấn realtime cho các Frontend đang mở tab Giám sát

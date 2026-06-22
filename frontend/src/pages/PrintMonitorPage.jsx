@@ -11,6 +11,7 @@ const PrintMonitorPage = () => {
   const [pageWidth, setPageWidth] = useState(100);
   const [pageHeight, setPageHeight] = useState(150);
   const [orientation, setOrientation] = useState('portrait');
+  const [paperName, setPaperName] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
   const [settingsError, setSettingsError] = useState(null);
@@ -55,6 +56,7 @@ const PrintMonitorPage = () => {
         setPageWidth(data.pageWidth || 100);
         setPageHeight(data.pageHeight || 150);
         setOrientation(data.orientation || 'portrait');
+        setPaperName(data.paperName || '');
       }
     } catch (err) {
       console.error('Lỗi lấy cấu hình máy in:', err);
@@ -92,13 +94,14 @@ const PrintMonitorPage = () => {
           printerName: selectedPrinter,
           pageWidth: Number(pageWidth),
           pageHeight: Number(pageHeight),
-          orientation: orientation
+          orientation: orientation,
+          paperName: paperName
         })
       });
       const data = await res.json();
       if (data.success) {
         setSettingsSuccess(true);
-        addConsoleLog(`⚙️ Đã lưu cấu hình máy in: ${data.printerName} (${data.pageWidth}x${data.pageHeight}mm, ${data.orientation})`, 'system');
+        addConsoleLog(`⚙️ Đã lưu cấu hình máy in: ${data.printerName} (${data.pageWidth}x${data.pageHeight}mm, ${data.orientation}, PaperName="${data.paperName}")`, 'system');
         setTimeout(() => setSettingsSuccess(false), 3000);
       } else {
         setSettingsError('Lưu cấu hình thất bại.');
@@ -143,7 +146,8 @@ const PrintMonitorPage = () => {
         setPageWidth(settings.pageWidth || 100);
         setPageHeight(settings.pageHeight || 150);
         setOrientation(settings.orientation || 'portrait');
-        addConsoleLog(`⚙️ Cấu hình máy in được đồng bộ từ server: ${settings.printerName} (${settings.pageWidth}x${settings.pageHeight}mm, ${settings.orientation})`, 'system');
+        setPaperName(settings.paperName || '');
+        addConsoleLog(`⚙️ Cấu hình máy in được đồng bộ từ server: ${settings.printerName} (${settings.pageWidth}x${settings.pageHeight}mm, ${settings.orientation}, PaperName="${settings.paperName || ''}")`, 'system');
       }
     });
 
@@ -268,6 +272,17 @@ const PrintMonitorPage = () => {
                 <option value="portrait">Dọc (Portrait)</option>
                 <option value="landscape">Ngang (Landscape)</option>
               </select>
+            </div>
+
+            <div className="input-group">
+              <label>Tên khổ giấy trên Driver máy in (Ví dụ: 100mmx150mm, 4x6 - bỏ trống nếu sử dụng mặc định):</label>
+              <input 
+                type="text"
+                value={paperName} 
+                onChange={(e) => setPaperName(e.target.value)}
+                placeholder="Nhập tên khổ giấy (ví dụ: 100x150 hoặc 100mm x 150mm)"
+                disabled={savingSettings}
+              />
             </div>
 
             <div className="settings-actions">
