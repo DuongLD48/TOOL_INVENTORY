@@ -688,11 +688,13 @@ app.post('/api/inventory/print-test', async (req, res) => {
           const printOptions = {
             printer: targetPrinter,
             silent: true,
-            scale: 'noscale',
+            scale: 'fit', // Cân giữa và co giãn khớp với lề vùng in của máy in
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
-            printOptions.paper = PRINTER_CONFIG.paperName;
+            printOptions.paperSize = PRINTER_CONFIG.paperName;
+          } else {
+            printOptions.paperSize = `${targetWidth}mm x ${targetHeight}mm`; // Ép khổ giấy động để tránh lệch lề
           }
           await print(pdfPath, printOptions);
           setTimeout(() => { try { fs.unlinkSync(pdfPath); } catch(_) {} }, 10000);
@@ -746,10 +748,19 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
     const writeStream = fs.createWriteStream(pdfPath);
     doc.pipe(writeStream);
 
+    // Đăng ký font Arial nếu có trên Windows để hiển thị được tiếng Việt có dấu
+    const hasArial = fs.existsSync('C:\\Windows\\Fonts\\arial.ttf') && fs.existsSync('C:\\Windows\\Fonts\\arialbd.ttf');
+    if (hasArial) {
+      doc.registerFont('Arial', 'C:\\Windows\\Fonts\\arial.ttf');
+      doc.registerFont('Arial-Bold', 'C:\\Windows\\Fonts\\arialbd.ttf');
+    }
+    const fontRegular = hasArial ? 'Arial' : 'Helvetica';
+    const fontBold = hasArial ? 'Arial-Bold' : 'Helvetica-Bold';
+
     doc.addPage();
 
     // 1. Vẽ Ngày tháng ở góc trên bên phải
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+    doc.font(fontBold).fontSize(10).fillColor('black')
       .text(testOrder.date || '', PAGE_W - PAD - 100, PAD, { width: 100, align: 'right' });
       
     // 2. Vẽ Barcode của trackingId
@@ -780,11 +791,11 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
     }
     
     // 4. Vẽ chữ Tracking
-    doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+    doc.font(fontBold).fontSize(11).fillColor('black')
       .text(`Tracking: ${testOrder.trackingId || ''}`, PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
       
     // 5. Vẽ chữ Order ID
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+    doc.font(fontBold).fontSize(10).fillColor('black')
       .text(`Order ID: ${testOrder.orderId}`, PAD, PAD + 31 * MM, { width: PAGE_W - (PAD * 2) });
     
     // 6. Vẽ khung hộp sản phẩm
@@ -796,7 +807,7 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
     doc.rect(boxX, boxY, boxW, boxH).dash(4, { space: 4 }).stroke();
     doc.undash();
     
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+    doc.font(fontBold).fontSize(10).fillColor('black')
       .text('PRODUCT', boxX + 4 * MM, boxY + 4 * MM);
       
     let currentY = boxY + 10 * MM;
@@ -805,11 +816,11 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
         const nameText = item.name || '';
         const qtyText = item.quantity > 1 ? `x${item.quantity}` : '';
         
-        doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+        doc.font(fontBold).fontSize(11).fillColor('black')
           .text(nameText, boxX + 4 * MM, currentY, { width: boxW - 14 * MM });
           
         if (qtyText) {
-          doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+          doc.font(fontBold).fontSize(11).fillColor('black')
             .text(qtyText, boxX + boxW - 10 * MM, currentY, { width: 6 * MM, align: 'right' });
         }
         currentY += 7 * MM;
@@ -840,13 +851,17 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
           const printOptions = {
             printer: targetPrinter,
             silent: true,
-            scale: 'noscale',
+            scale: 'fit', // Co giãn cân giữa khớp với máy in
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
-            printOptions.paper = PRINTER_CONFIG.paperName;
+            printOptions.paperSize = PRINTER_CONFIG.paperName;
+          } else {
+            printOptions.paperSize = `${targetWidth}mm x ${targetHeight}mm`; // Ép khổ giấy động để tránh lệch lề
           }
+          console.log(`[Printer] Gửi in thử đơn hàng với cấu hình:`, printOptions);
           await print(pdfPath, printOptions);
+          console.log(`[Printer] Đã gửi lệnh in thử thành công.`);
           setTimeout(() => { try { fs.unlinkSync(pdfPath); } catch(_) {} }, 10000);
           res.json({ message: 'Đã gửi nhãn đơn hàng in thử tới máy in.' });
         } catch (printErr) {
@@ -959,11 +974,13 @@ app.post('/api/inventory/print-now', async (req, res) => {
           const printOptions = { 
             printer: targetPrinter, 
             silent: true,
-            scale: 'noscale',
+            scale: 'fit', // Cân giữa và co giãn khớp với lề vùng in của máy in
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
-            printOptions.paper = PRINTER_CONFIG.paperName;
+            printOptions.paperSize = PRINTER_CONFIG.paperName;
+          } else {
+            printOptions.paperSize = `${targetWidth}mm x ${targetHeight}mm`; // Ép khổ giấy động để tránh lệch lề
           }
           await print(pdfPath, printOptions);
           // Dọn file tạm sau 10 giây
@@ -1328,12 +1345,21 @@ const printOrderLabels = async (orders) => {
     const doc = new PDFDocument({ size: [PAGE_W, PAGE_H], margin: 0, autoFirstPage: false });
     const writeStream = fs.createWriteStream(pdfPath);
     doc.pipe(writeStream);
+
+    // Đăng ký font Arial nếu có trên Windows để hiển thị được tiếng Việt có dấu
+    const hasArial = fs.existsSync('C:\\Windows\\Fonts\\arial.ttf') && fs.existsSync('C:\\Windows\\Fonts\\arialbd.ttf');
+    if (hasArial) {
+      doc.registerFont('Arial', 'C:\\Windows\\Fonts\\arial.ttf');
+      doc.registerFont('Arial-Bold', 'C:\\Windows\\Fonts\\arialbd.ttf');
+    }
+    const fontRegular = hasArial ? 'Arial' : 'Helvetica';
+    const fontBold = hasArial ? 'Arial-Bold' : 'Helvetica-Bold';
     
     for (const order of orders) {
       doc.addPage();
       
       // 1. Vẽ Ngày tháng ở góc trên bên phải
-      doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+      doc.font(fontBold).fontSize(10).fillColor('black')
         .text(order.date || '', PAGE_W - PAD - 100, PAD, { width: 100, align: 'right' });
         
       // 2. Vẽ Barcode của trackingId (dùng bwip-js)
@@ -1364,12 +1390,12 @@ const printOrderLabels = async (orders) => {
       }
       
       // 4. Vẽ chữ Tracking
-      doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+      doc.font(fontBold).fontSize(11).fillColor('black')
         .text(`Tracking: ${order.trackingId || ''}`, PAD, PAD + 25 * MM, { width: PAGE_W - (PAD * 2) });
         
       // 5. Vẽ chữ Order ID
       if (order.orderId) {
-        doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+        doc.font(fontBold).fontSize(10).fillColor('black')
           .text(`Order ID: ${order.orderId}`, PAD, PAD + 31 * MM, { width: PAGE_W - (PAD * 2) });
       }
       
@@ -1384,7 +1410,7 @@ const printOrderLabels = async (orders) => {
       doc.undash(); // Khôi phục nét liền cho các thành phần khác
       
       // Tiêu đề khung
-      doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+      doc.font(fontBold).fontSize(10).fillColor('black')
         .text('PRODUCT', boxX + 4 * MM, boxY + 4 * MM);
         
       // Nội dung danh sách sản phẩm
@@ -1395,12 +1421,12 @@ const printOrderLabels = async (orders) => {
           const qtyText = item.quantity > 1 ? `x${item.quantity}` : '';
           
           // Vẽ tên sản phẩm (căn trái)
-          doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+          doc.font(fontBold).fontSize(11).fillColor('black')
             .text(nameText, boxX + 4 * MM, currentY, { width: boxW - 14 * MM });
             
           // Vẽ số lượng sản phẩm (căn phải)
           if (qtyText) {
-            doc.font('Helvetica-Bold').fontSize(11).fillColor('black')
+            doc.font(fontBold).fontSize(11).fillColor('black')
               .text(qtyText, boxX + boxW - 10 * MM, currentY, { width: 6 * MM, align: 'right' });
           }
           
@@ -1408,7 +1434,7 @@ const printOrderLabels = async (orders) => {
         }
       } else {
         // Fallback nếu không có productItems
-        doc.font('Helvetica-Bold').fontSize(10).fillColor('black')
+        doc.font(fontBold).fontSize(10).fillColor('black')
           .text(order.product || '', boxX + 4 * MM, boxY + 10 * MM, { width: boxW - 8 * MM });
       }
     }
@@ -1425,11 +1451,13 @@ const printOrderLabels = async (orders) => {
         const printOptions = {
           printer: PRINTER_CONFIG.printerName,
           silent: true,
-          scale: 'noscale',
+          scale: 'fit', // Thay thế 'noscale' bằng 'fit' để khớp với trình duyệt và tự động căn giữa
           orientation: PRINTER_CONFIG.orientation || 'portrait'
         };
         if (PRINTER_CONFIG.paperName) {
-          printOptions.paper = PRINTER_CONFIG.paperName;
+          printOptions.paperSize = PRINTER_CONFIG.paperName;
+        } else {
+          printOptions.paperSize = `${PRINTER_CONFIG.pageWidth || 100}mm x ${PRINTER_CONFIG.pageHeight || 150}mm`; // Ép khổ giấy động để tránh lệch lề
         }
         await print(pdfPath, printOptions);
         console.log(`[Printer] Đã gửi lệnh in thành công.`);
