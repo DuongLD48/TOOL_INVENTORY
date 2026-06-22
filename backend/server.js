@@ -787,7 +787,37 @@ const renderOrderPage = async (doc, order, fontRegular, fontBold, PAGE_W, PAGE_H
   const boxX = PAD;
   const boxY = currentY;
   const boxW = PAGE_W - 2 * PAD;
-  const boxH = PAGE_H - boxY - PAD;
+  
+  // Tính toán chiều cao của sản phẩm trước để vẽ khung có chiều cao tự động (auto-height) khớp với HTML/CSS
+  const titleHeight = doc.font(fontBold).fontSize(9).currentLineHeight();
+  let productsH = 0;
+  
+  doc.font(fontBold).fontSize(10.5);
+  if (Array.isArray(order.productItems) && order.productItems.length > 0) {
+    for (let i = 0; i < order.productItems.length; i++) {
+      const item = order.productItems[i];
+      const nameText = nfc(item.name || '');
+      const qtyText = item.quantity > 1 ? `x${item.quantity}` : '';
+      
+      let itemH = 0;
+      if (qtyText) {
+        const qtyW = 10 * MM;
+        const nameW = boxW - 10 * MM - qtyW - 2 * MM;
+        itemH = doc.heightOfString(nameText, { width: nameW, lineGap: 3 });
+      } else {
+        itemH = doc.heightOfString(nameText, { width: boxW - 10 * MM, lineGap: 3 });
+      }
+      productsH += itemH;
+      if (i < order.productItems.length - 1) {
+        productsH += 3; // Gap 3pt
+      }
+    }
+  } else {
+    const fallbackText = nfc(order.product || '');
+    productsH = doc.heightOfString(fallbackText, { width: boxW - 10 * MM, lineGap: 3 });
+  }
+  
+  const boxH = 5 * MM + titleHeight + 2 * MM + productsH + 5 * MM;
   
   doc.rect(boxX, boxY, boxW, boxH).lineWidth(1.5).dash(4, { space: 4 }).stroke();
   doc.undash();
@@ -798,7 +828,6 @@ const renderOrderPage = async (doc, order, fontRegular, fontBold, PAGE_W, PAGE_H
   // Tiêu đề PRODUCT
   doc.font(fontBold).fontSize(9).fillColor('black');
   doc.text('PRODUCT', boxX + 5 * MM, boxContentY);
-  const titleHeight = doc.currentLineHeight();
   
   boxContentY += titleHeight + 2 * MM;
   
@@ -817,14 +846,14 @@ const renderOrderPage = async (doc, order, fontRegular, fontBold, PAGE_W, PAGE_H
         const qtyX = boxX + boxW - 5 * MM - qtyW;
         const nameW = qtyX - productX - 2 * MM;
         
-        const nameH = doc.heightOfString(nameText, { width: nameW });
-        doc.text(nameText, productX, boxContentY, { width: nameW });
+        const nameH = doc.heightOfString(nameText, { width: nameW, lineGap: 3 });
+        doc.text(nameText, productX, boxContentY, { width: nameW, lineGap: 3 });
         doc.text(qtyText, qtyX, boxContentY, { width: qtyW, align: 'right' });
         
         boxContentY += nameH + 3; // Gap 3pt
       } else {
-        const nameH = doc.heightOfString(nameText, { width: productW });
-        doc.text(nameText, productX, boxContentY, { width: productW });
+        const nameH = doc.heightOfString(nameText, { width: productW, lineGap: 3 });
+        doc.text(nameText, productX, boxContentY, { width: productW, lineGap: 3 });
         
         boxContentY += nameH + 3; // Gap 3pt
       }
@@ -833,7 +862,7 @@ const renderOrderPage = async (doc, order, fontRegular, fontBold, PAGE_W, PAGE_H
     // Fallback nếu không có productItems dạng mảng cấu trúc
     doc.font(fontBold).fontSize(10.5).fillColor('black');
     const fallbackText = nfc(order.product || '');
-    doc.text(fallbackText, productX, boxContentY, { width: productW });
+    doc.text(fallbackText, productX, boxContentY, { width: productW, align: 'center', lineGap: 3 });
   }
 };
 
