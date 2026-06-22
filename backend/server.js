@@ -680,6 +680,19 @@ app.post('/api/inventory/print-test', async (req, res) => {
         res.json({ message: 'Tạo PDF test thành công', pdfUrl: `/uploads/${pdfFilename}` });
       } else {
         try {
+          try {
+            fs.copyFileSync(pdfPath, path.join(uploadsDir, 'last_printed.pdf'));
+            // Phát tín hiệu in thành công để frontend cập nhật log và preview
+            io.emit('order_printed', {
+              timestamp: Date.now(),
+              orderId: 'TEST-0001',
+              trackingId: 'TEST-TRACKING-12345',
+              shop: 'TEST_SHEET',
+              details: 'In thử nhãn test (Khổ cấu hình)'
+            });
+          } catch (copyErr) {
+            console.error('Không thể lưu bản sao preview:', copyErr.message);
+          }
           const printOptions = {
             printer: targetPrinter,
             silent: true,
@@ -794,6 +807,19 @@ app.post('/api/inventory/print-now', async (req, res) => {
       // Chờ file được ghi xong rồi mới in
       writeStream.on('finish', async () => {
         try {
+          try {
+            fs.copyFileSync(pdfPath, path.join(uploadsDir, 'last_printed.pdf'));
+            // Phát tín hiệu in SKU thành công để frontend cập nhật log và preview
+            products.forEach(p => {
+              io.emit('inventory_updated', {
+                type: 'PRINT',
+                product: p,
+                timestamp: Date.now()
+              });
+            });
+          } catch (copyErr) {
+            console.error('Không thể lưu bản sao preview:', copyErr.message);
+          }
           const printOptions = { 
             printer: targetPrinter, 
             silent: true,
@@ -1254,6 +1280,11 @@ const printOrderLabels = async (orders) => {
     
     writeStream.on('finish', async () => {
       try {
+        try {
+          fs.copyFileSync(pdfPath, path.join(uploadsDir, 'last_printed.pdf'));
+        } catch (copyErr) {
+          console.error('[Printer] Không thể lưu bản sao preview:', copyErr.message);
+        }
         console.log(`[Printer] Đang gửi lệnh in ${orders.length} nhãn tới máy in: ${PRINTER_CONFIG.printerName}...`);
         const printOptions = {
           printer: PRINTER_CONFIG.printerName,

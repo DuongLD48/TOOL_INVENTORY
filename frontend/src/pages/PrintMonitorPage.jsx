@@ -12,9 +12,15 @@ const PrintMonitorPage = () => {
   const [pageHeight, setPageHeight] = useState(150);
   const [orientation, setOrientation] = useState('portrait');
   const [paperName, setPaperName] = useState('');
+  const [previewUrl, setPreviewUrl] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
   const [settingsError, setSettingsError] = useState(null);
+  
+  // Test Print & Preview states
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [printingTest, setPrintingTest] = useState(false);
+  const [testFeedback, setTestFeedback] = useState(null);
   
   // Real-time Console Log
   const [consoleLogs, setConsoleLogs] = useState([
@@ -119,11 +125,82 @@ const PrintMonitorPage = () => {
     consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [consoleLogs]);
 
+  const checkPreviewFile = async () => {
+    try {
+      const res = await fetch(`http://${window.location.hostname}:3001/uploads/last_printed.pdf`, { method: 'HEAD' });
+      if (res.ok) {
+        setPreviewUrl(`http://${window.location.hostname}:3001/uploads/last_printed.pdf?t=${Date.now()}`);
+      }
+    } catch (e) {
+      console.log('Chưa có file preview gần nhất.');
+    }
+  };
+
+  const handlePreviewTest = async () => {
+    setLoadingPreview(true);
+    setTestFeedback(null);
+    try {
+      const res = await fetch(`http://${window.location.hostname}:3001/api/inventory/print-test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          printerName: selectedPrinter,
+          pageWidth: Number(pageWidth),
+          pageHeight: Number(pageHeight),
+          orientation: orientation,
+          mode: 'pdf'
+        })
+      });
+      const data = await res.json();
+      if (data.pdfUrl) {
+        setPreviewUrl(`http://${window.location.hostname}:3001${data.pdfUrl}?t=${Date.now()}`);
+        setTestFeedback({ type: 'success', text: '✓ Đã tạo PDF test thành công!' });
+        addConsoleLog('🖥️ Đã xem thử PDF nhãn test thành công.', 'system');
+      } else {
+        setTestFeedback({ type: 'error', text: `✗ Lỗi: ${data.error || 'Không thể tạo PDF'}` });
+      }
+    } catch (err) {
+      console.error(err);
+      setTestFeedback({ type: 'error', text: '✗ Lỗi kết nối local server.' });
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const handlePrintTest = async () => {
+    setPrintingTest(true);
+    setTestFeedback(null);
+    try {
+      const res = await fetch(`http://${window.location.hostname}:3001/api/inventory/print-test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          printerName: selectedPrinter,
+          pageWidth: Number(pageWidth),
+          pageHeight: Number(pageHeight),
+          orientation: orientation
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTestFeedback({ type: 'success', text: '✓ Đã gửi lệnh in test thành công!' });
+      } else {
+        setTestFeedback({ type: 'error', text: `✗ Lỗi in: ${data.error || 'In thất bại'}` });
+      }
+    } catch (err) {
+      console.error(err);
+      setTestFeedback({ type: 'error', text: '✗ Lỗi kết nối local server.' });
+    } finally {
+      setPrintingTest(false);
+    }
+  };
+
   // Kết nối socket và lắng nghe sự kiện
   useEffect(() => {
     fetchPrinters();
     fetchActivePrinters();
     fetchDbLogs();
+    checkPreviewFile();
 
     if (!socket) return;
 
@@ -155,6 +232,9 @@ const PrintMonitorPage = () => {
       if (data) {
         addConsoleLog(`🖨️ LỆNH IN ĐƠN HÀNG: Đơn #${data.orderId} (Nguồn: ${data.shop}) - Mã vận đơn: ${data.trackingId}`, 'print');
         fetchDbLogs(); // Tải lại lịch sử in từ DB
+        setTimeout(() => {
+          setPreviewUrl(`http://${window.location.hostname}:3001/uploads/last_printed.pdf?t=${Date.now()}`);
+        }, 800);
       }
     });
 
@@ -162,6 +242,9 @@ const PrintMonitorPage = () => {
       if (data && data.type === 'PRINT') {
         addConsoleLog(`🏷️ LỆNH IN TEM SKU: Đã in tem cho sản phẩm #${data.product?.id || ''} (${data.product?.sku || ''})`, 'print');
         fetchDbLogs();
+        setTimeout(() => {
+          setPreviewUrl(`http://${window.location.hostname}:3001/uploads/last_printed.pdf?t=${Date.now()}`);
+        }, 800);
       }
     });
 
@@ -198,105 +281,163 @@ const PrintMonitorPage = () => {
       </header>
 
       <div className="monitor-grid">
-        {/* Card 1: Trạng thái Firebase */}
-        <div className={`glass-panel status-card ${getFirebaseClass()}`}>
-          <div className="status-card-header">
-            <h3>Trạng thái Firebase</h3>
-            {renderFirebaseIcon()}
-          </div>
-          <div className="status-card-body">
-            <div className="status-badge">
-              <span className="status-dot"></span>
-              <strong>{firebaseStatus.status}</strong>
+        {/* Cột trái: Trạng thái và Cấu hình */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Card 1: Trạng thái Firebase */}
+          <div className={`glass-panel status-card ${getFirebaseClass()}`} style={{ flex: 1 }}>
+            <div className="status-card-header">
+              <h3>Trạng thái Firebase</h3>
+              {renderFirebaseIcon()}
             </div>
-            <p className="status-message">{firebaseStatus.message}</p>
-            {firebaseStatus.status === 'NOT_CONFIGURED' && (
-              <div className="status-tip">
-                <AlertTriangle size={14} />
-                <span>Bạn cần ghi đè file <code>serviceAccountKey.json</code> ở server để kích hoạt in tự động.</span>
+            <div className="status-card-body">
+              <div className="status-badge">
+                <span className="status-dot"></span>
+                <strong>{firebaseStatus.status}</strong>
               </div>
-            )}
+              <p className="status-message">{firebaseStatus.message}</p>
+              {firebaseStatus.status === 'NOT_CONFIGURED' && (
+                <div className="status-tip">
+                  <AlertTriangle size={14} />
+                  <span>Bạn cần ghi đè file <code>serviceAccountKey.json</code> ở server để kích hoạt in tự động.</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Card 2: Cấu hình Máy In */}
+          <div className="glass-panel printer-settings-card">
+            <div className="card-header">
+              <h3><Printer size={18} /> Cấu hình máy in trên Server</h3>
+              <span className="card-header-desc">Thiết lập máy in duy nhất và kích thước khổ giấy in cho server local.</span>
+            </div>
+            <div className="card-body">
+              <div className="input-group">
+                <label>Chọn máy in hệ thống:</label>
+                <select 
+                  value={selectedPrinter} 
+                  onChange={(e) => setSelectedPrinter(e.target.value)}
+                  disabled={savingSettings}
+                >
+                  <option value="">-- Chọn máy in --</option>
+                  {printers.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+
+              <div className="settings-row">
+                <div className="input-group">
+                  <label>Khổ ngang (Width mm):</label>
+                  <input 
+                    type="number" 
+                    value={pageWidth} 
+                    onChange={(e) => setPageWidth(Number(e.target.value))}
+                    disabled={savingSettings}
+                    min="1"
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label>Khổ dọc (Height mm):</label>
+                  <input 
+                    type="number" 
+                    value={pageHeight} 
+                    onChange={(e) => setPageHeight(Number(e.target.value))}
+                    disabled={savingSettings}
+                    min="1"
+                  />
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label>Chiều in (Orientation):</label>
+                <select 
+                  value={orientation} 
+                  onChange={(e) => setOrientation(e.target.value)}
+                  disabled={savingSettings}
+                >
+                  <option value="portrait">Dọc (Portrait)</option>
+                  <option value="landscape">Ngang (Landscape)</option>
+                </select>
+              </div>
+
+              <div className="input-group">
+                <label>Tên khổ giấy trên Driver máy in (Ví dụ: 100mmx150mm, 4x6 - bỏ trống nếu sử dụng mặc định):</label>
+                <input 
+                  type="text"
+                  value={paperName} 
+                  onChange={(e) => setPaperName(e.target.value)}
+                  placeholder="Nhập tên khổ giấy (ví dụ: 100x150 hoặc 100mm x 150mm)"
+                  disabled={savingSettings}
+                />
+              </div>
+
+              <div className="settings-actions">
+                <button 
+                  className="button button--primary save-btn"
+                  onClick={handleSavePrinters}
+                  disabled={savingSettings}
+                >
+                  {savingSettings ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}
+                  <span>{savingSettings ? 'Đang lưu...' : 'Lưu cài đặt'}</span>
+                </button>
+                {settingsSuccess && <span className="text-success settings-feedback">✓ Đã cập nhật trên server!</span>}
+                {settingsError && <span className="text-danger settings-feedback">✗ {settingsError}</span>}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Card 2: Cấu hình Máy In */}
-        <div className="glass-panel printer-settings-card">
-          <div className="card-header">
-            <h3><Printer size={18} /> Cấu hình máy in trên Server</h3>
-            <span className="card-header-desc">Thiết lập máy in duy nhất và kích thước khổ giấy in cho server local.</span>
+        {/* Cột phải: Xem trước nhãn in gần nhất */}
+        <div className="glass-panel printer-preview-card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="card-header" style={{ marginBottom: '12px' }}>
+            <h3><Printer size={18} style={{ color: '#60a5fa', marginRight: '4px' }} /> Xem trước nhãn in gần nhất</h3>
+            <span className="card-header-desc">Xem trực tiếp tệp PDF của nhãn vừa được in ra.</span>
           </div>
-          <div className="card-body">
-            <div className="input-group">
-              <label>Chọn máy in hệ thống:</label>
-              <select 
-                value={selectedPrinter} 
-                onChange={(e) => setSelectedPrinter(e.target.value)}
-                disabled={savingSettings}
-              >
-                <option value="">-- Chọn máy in --</option>
-                {printers.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-
-            <div className="settings-row">
-              <div className="input-group">
-                <label>Khổ ngang (Width mm):</label>
-                <input 
-                  type="number" 
-                  value={pageWidth} 
-                  onChange={(e) => setPageWidth(Number(e.target.value))}
-                  disabled={savingSettings}
-                  min="1"
-                />
-              </div>
-
-              <div className="input-group">
-                <label>Khổ dọc (Height mm):</label>
-                <input 
-                  type="number" 
-                  value={pageHeight} 
-                  onChange={(e) => setPageHeight(Number(e.target.value))}
-                  disabled={savingSettings}
-                  min="1"
-                />
-              </div>
-            </div>
-
-            <div className="input-group">
-              <label>Chiều in (Orientation):</label>
-              <select 
-                value={orientation} 
-                onChange={(e) => setOrientation(e.target.value)}
-                disabled={savingSettings}
-              >
-                <option value="portrait">Dọc (Portrait)</option>
-                <option value="landscape">Ngang (Landscape)</option>
-              </select>
-            </div>
-
-            <div className="input-group">
-              <label>Tên khổ giấy trên Driver máy in (Ví dụ: 100mmx150mm, 4x6 - bỏ trống nếu sử dụng mặc định):</label>
-              <input 
-                type="text"
-                value={paperName} 
-                onChange={(e) => setPaperName(e.target.value)}
-                placeholder="Nhập tên khổ giấy (ví dụ: 100x150 hoặc 100mm x 150mm)"
-                disabled={savingSettings}
+          <div className="card-body" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {previewUrl ? (
+              <iframe 
+                src={previewUrl} 
+                title="Preview nhãn in" 
+                style={{ width: '100%', height: '100%', minHeight: '400px', border: 'none', borderRadius: '10px', background: 'white' }}
               />
-            </div>
-
-            <div className="settings-actions">
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', border: '2px dashed rgba(255,255,255,0.1)', borderRadius: '10px', padding: '40px', textAlign: 'center', minHeight: '400px' }}>
+                <Printer size={48} style={{ marginBottom: '16px', opacity: 0.2 }} />
+                <span>Chưa có dữ liệu in hoặc file preview trống.</span>
+              </div>
+            )}
+            
+            <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
               <button 
-                className="button button--primary save-btn"
-                onClick={handleSavePrinters}
-                disabled={savingSettings}
+                className="button button--secondary" 
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', minHeight: '40px', borderRadius: '10px' }}
+                onClick={handlePreviewTest}
+                disabled={loadingPreview}
               >
-                {savingSettings ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}
-                <span>{savingSettings ? 'Đang lưu...' : 'Lưu cài đặt'}</span>
+                {loadingPreview ? <RefreshCw className="animate-spin" size={16} /> : <Printer size={16} />}
+                <span>{loadingPreview ? 'Đang tạo PDF...' : 'Xem thử nhãn test'}</span>
               </button>
-              {settingsSuccess && <span className="text-success settings-feedback">✓ Đã cập nhật trên server!</span>}
-              {settingsError && <span className="text-danger settings-feedback">✗ {settingsError}</span>}
+              <button 
+                className="button button--primary" 
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', minHeight: '40px', borderRadius: '10px' }}
+                onClick={handlePrintTest}
+                disabled={printingTest}
+              >
+                {printingTest ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}
+                <span>{printingTest ? 'Đang in thử...' : 'In thử ra máy in'}</span>
+              </button>
             </div>
+            {testFeedback && (
+              <div style={{ 
+                fontSize: '0.85rem', 
+                fontWeight: '500', 
+                color: testFeedback.type === 'success' ? '#10b981' : '#ef4444', 
+                textAlign: 'center',
+                marginTop: '4px',
+                animation: 'fadeIn 0.3s ease forwards'
+              }}>
+                {testFeedback.text}
+              </div>
+            )}
           </div>
         </div>
       </div>
