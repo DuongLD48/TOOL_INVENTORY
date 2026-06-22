@@ -688,7 +688,7 @@ app.post('/api/inventory/print-test', async (req, res) => {
           const printOptions = {
             printer: targetPrinter,
             silent: true,
-            scale: 'fit', // Khớp với cách trình duyệt in (Fit to Page), driver tự xác định khổ giấy
+            scale: 'shrink', // Thu nhỏ nhẹ và căn giữa chỉ khi PDF lớn hơn vùng in
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
@@ -858,7 +858,7 @@ app.post('/api/inventory/print-test-order', async (req, res) => {
           const printOptions = {
             printer: targetPrinter,
             silent: true,
-            scale: 'fit', // Khớp với cách trình duyệt in (Fit to Page), driver tự xác định khổ giấy
+            scale: 'shrink', // Thu nhỏ nhẹ và căn giữa chỉ khi PDF lớn hơn vùng in
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
@@ -979,7 +979,7 @@ app.post('/api/inventory/print-now', async (req, res) => {
           const printOptions = { 
             printer: targetPrinter, 
             silent: true,
-            scale: 'fit', // Khớp với cách trình duyệt in (Fit to Page), driver tự xác định khổ giấy
+            scale: 'shrink', // Thu nhỏ nhẹ và căn giữa chỉ khi PDF lớn hơn vùng in; nếu bằng/nhỏ hơn thì giữ nguyên kích thước
             orientation: targetOrientation
           };
           if (PRINTER_CONFIG.paperName) {
@@ -1462,7 +1462,7 @@ const printOrderLabels = async (orders) => {
         const printOptions = {
           printer: PRINTER_CONFIG.printerName,
           silent: true,
-          scale: 'fit', // Khớp với cách trình duyệt in (Fit to Page), driver tự xác định khổ giấy
+          scale: 'shrink', // Thu nhỏ nhẹ và căn giữa chỉ khi PDF lớn hơn vùng in; nếu bằng/nhỏ hơn thì giữ nguyên kích thước
           orientation: PRINTER_CONFIG.orientation || 'portrait'
         };
         if (PRINTER_CONFIG.paperName) {
