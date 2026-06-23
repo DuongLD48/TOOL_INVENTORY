@@ -825,9 +825,20 @@ const renderOrderPage = async (doc, order, fontRegular, fontBold, PAGE_W, PAGE_H
   // Vẽ nội dung sản phẩm bên trong hộp
   let boxContentY = boxY + 5 * MM;
   
+  let totalQty = 0;
+  if (Array.isArray(order.productItems) && order.productItems.length > 0) {
+    totalQty = order.productItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  }
+  
   // Tiêu đề PRODUCT
   doc.font(fontBold).fontSize(9).fillColor('black');
   doc.text('PRODUCT', boxX + 5 * MM, boxContentY);
+  if (totalQty > 0) {
+    doc.text(`TOTAL QTY: ${totalQty}`, boxX + 5 * MM, boxContentY, {
+      width: boxW - 10 * MM,
+      align: 'right'
+    });
+  }
   
   boxContentY += titleHeight + 2 * MM;
   
